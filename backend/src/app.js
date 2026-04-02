@@ -9,6 +9,10 @@ app.use(cors());
 app.use(express.json());
 
 // ── Routes ────────────────────────────────────────────────
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', message: 'Suraksha Health API 🏥' });
+});
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'MediSafe API is running 🚀' });
 });
