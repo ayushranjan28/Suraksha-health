@@ -1,20 +1,45 @@
-const express = require('express');
-const cors = require('cors');
-require('dotenv').config();
+'use strict';
+
+const express    = require('express');
+const cors       = require('cors');
+const cookieParser = require('cookie-parser');
+const config     = require('./config');
+
+const { apiLimiter }                  = require('./middleware/rateLimiter');
+const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
+const authRoutes                      = require('./routes/auth');
 
 const app = express();
 
-// ── Middleware ────────────────────────────────────────────
-app.use(cors());
-app.use(express.json());
+// ── Security / transport middleware ───────────────────────
+app.use(cors({
+  origin:      config.corsOrigin,
+  credentials: true,               // allow cookies to be sent cross-origin
+  methods:     ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+}));
 
-// ── Routes ────────────────────────────────────────────────
+// ── Body / cookie parsers ─────────────────────────────────
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
+app.use(cookieParser());
+
+// ── General rate limit (all /api routes) ─────────────────
+app.use('/api', apiLimiter);
+
+// ── Health-check routes (no auth required) ────────────────
 app.get('/', (req, res) => {
   res.json({ status: 'ok', message: 'Suraksha Health API 🏥' });
 });
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', message: 'MediSafe API is running 🚀' });
+  res.json({ status: 'ok', message: 'Suraksha Health API is running 🚀' });
 });
+
+// ── Feature routes ────────────────────────────────────────
+app.use('/api/auth', authRoutes);
+
+// ── 404 & global error handler (must be last) ────────────
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 module.exports = app;
