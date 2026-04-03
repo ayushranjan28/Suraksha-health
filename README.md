@@ -13,7 +13,7 @@ A secure health vault with:
 ## 📂 Project Structure
 
 ```
-medisafe/
+suraksha-health/
 ├── backend/        # Express API Server
 │   ├── src/
 │   │   ├── controllers/
@@ -55,7 +55,7 @@ medisafe/
 
 4. Health Check:
    * Run GET `http://localhost:5000/health`
-   * Response: `{ status: 'ok', message: 'MediSafe API is running 🚀' }`
+   * Response: `{ status: 'ok', message: 'Suraksha Health API is running 🚀' }`
 
 ### Running the Frontend
 
