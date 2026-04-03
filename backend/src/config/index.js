@@ -18,9 +18,17 @@ if (missing.length > 0) {
 
 // ── Export validated config ──────────────────────────────
 module.exports = {
-  port:              process.env.PORT              || 5000,
-  supabaseUrl:       process.env.SUPABASE_URL,
+  port:               process.env.PORT               || 5000,
+  supabaseUrl:        process.env.SUPABASE_URL,
   supabaseServiceKey: process.env.SUPABASE_SERVICE_KEY,
-  jwtSecret:         process.env.JWT_SECRET,
-  nodeEnv:           process.env.NODE_ENV          || 'development',
+  jwtSecret:          process.env.JWT_SECRET,
+  nodeEnv:            process.env.NODE_ENV            || 'development',
+
+  // CORS
+  corsOrigin:         process.env.CORS_ORIGIN         || 'http://localhost:3000',
+
+  // Auth
+  bcryptRounds:       parseInt(process.env.BCRYPT_ROUNDS, 10) || 12,
+  jwtAccessExpiry:    process.env.JWT_ACCESS_EXPIRY   || '15m',
+  jwtRefreshExpiry:   process.env.JWT_REFRESH_EXPIRY  || '7d',
 };
