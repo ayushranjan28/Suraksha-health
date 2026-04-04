@@ -1,0 +1,215 @@
+'use client';
+
+import type {
+  LoginPayload,
+  RegisterPayload,
+  AuthResponse,
+  MeResponse,
+  RefreshResponse,
+  LogoutResponse,
+  ApiErrorResponse,
+} from '@/types/auth';
+
+// ── Configuration ────────────────────────────────────────────────────────────
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const TOKEN_KEY = 'suraksha_access_token';
+
+// ── ApiError Class ───────────────────────────────────────────────────────────
+
+export class ApiError extends Error {
+  status: number;
+  errors?: Array<{ field: string; message: string }>;
+
+  constructor(
+    message: string,
+    status: number,
+    errors?: Array<{ field: string; message: string }>
+  ) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.errors = errors;
+  }
+}
+
+// ── Token Helpers ────────────────────────────────────────────────────────────
+
+export function getStoredToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setStoredToken(token: string): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearStoredToken(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+// ── Core Fetch Wrapper ───────────────────────────────────────────────────────
+
+interface ApiCallOptions extends Omit<RequestInit, 'body'> {
+  body?: unknown;
+  skipAuth?: boolean;
+}
+
+export async function apiCall<T>(
+  endpoint: string,
+  options: ApiCallOptions = {}
+): Promise<T> {
+  const { body, skipAuth = false, headers: customHeaders, ...restOptions } = options;
+
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...customHeaders,
+  };
+
+  // Add Authorization header if token exists and not skipped
+  if (!skipAuth) {
+    const token = getStoredToken();
+    if (token) {
+      (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
+    }
+  }
+
+  const config: RequestInit = {
+    ...restOptions,
+    headers,
+    credentials: 'include', // Include cookies for refresh token
+  };
+
+  if (body !== undefined) {
+    config.body = JSON.stringify(body);
+  }
+
+  const url = `${API_BASE_URL}${endpoint}`;
+
+  try {
+    const response = await fetch(url, config);
+
+    // Handle 401 Unauthorized — clear token and redirect to login
+    if (response.status === 401) {
+      clearStoredToken();
+      
+      // Only redirect if we're in a browser context and not already on login
+      if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
+      }
+
+      const errorData = (await response.json().catch(() => ({}))) as ApiErrorResponse;
+      throw new ApiError(
+        errorData.message || 'Unauthorized. Please log in again.',
+        401,
+        errorData.errors
+      );
+    }
+
+    // Handle other non-ok responses
+    if (!response.ok) {
+      const errorData = (await response.json().catch(() => ({}))) as ApiErrorResponse;
+      throw new ApiError(
+        errorData.message || `Request failed with status ${response.status}`,
+        response.status,
+        errorData.errors
+      );
+    }
+
+    // Parse and return JSON response
+    const data = await response.json();
+    return data as T;
+  } catch (error) {
+    // Re-throw ApiError as-is
+    if (error instanceof ApiError) {
+      throw error;
+    }
+
+    // Network errors or JSON parse errors
+    throw new ApiError(
+      error instanceof Error ? error.message : 'Network error occurred',
+      0
+    );
+  }
+}
+
+// ── Auth API Functions ───────────────────────────────────────────────────────
+
+export const auth = {
+  /**
+   * Register a new user account.
+   * POST /api/auth/register
+   */
+  async register(data: RegisterPayload): Promise<AuthResponse> {
+    const response = await apiCall<AuthResponse>('/api/auth/register', {
+      method: 'POST',
+      body: data,
+      skipAuth: true,
+    });
+
+    // Store the access token
+    setStoredToken(response.accessToken);
+    return response;
+  },
+
+  /**
+   * Log in with email and password.
+   * POST /api/auth/login
+   */
+  async login(data: LoginPayload): Promise<AuthResponse> {
+    const response = await apiCall<AuthResponse>('/api/auth/login', {
+      method: 'POST',
+      body: data,
+      skipAuth: true,
+    });
+
+    // Store the access token
+    setStoredToken(response.accessToken);
+    return response;
+  },
+
+  /**
+   * Log out the current user.
+   * POST /api/auth/logout
+   */
+  async logout(): Promise<LogoutResponse> {
+    try {
+      const response = await apiCall<LogoutResponse>('/api/auth/logout', {
+        method: 'POST',
+      });
+      return response;
+    } finally {
+      // Always clear the token, even if the API call fails
+      clearStoredToken();
+    }
+  },
+
+  /**
+   * Get the current authenticated user's profile.
+   * GET /api/auth/me
+   */
+  async me(): Promise<MeResponse> {
+    return apiCall<MeResponse>('/api/auth/me', {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Refresh the access token using the httpOnly refresh cookie.
+   * POST /api/auth/refresh-token
+   */
+  async refreshToken(): Promise<RefreshResponse> {
+    const response = await apiCall<RefreshResponse>('/api/auth/refresh-token', {
+      method: 'POST',
+      skipAuth: true, // Refresh token is sent via cookie, not header
+    });
+
+    // Store the new access token
+    setStoredToken(response.accessToken);
+    return response;
+  },
+};
+
+export default { apiCall, auth, ApiError };
