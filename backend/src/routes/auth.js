@@ -4,7 +4,7 @@ const { Router } = require('express');
 
 const authController              = require('../controllers/authController');
 const { authenticateToken }       = require('../middleware/authMiddleware');
-const { loginLimiter, registerLimiter } = require('../middleware/rateLimiter');
+const { loginLimiter, registerLimiter, forgotPasswordLimiter } = require('../middleware/rateLimiter');
 
 const router = Router();
 
@@ -47,6 +47,23 @@ router.get(
   '/me',
   authenticateToken,
   authController.getMe,
+);
+
+// ── POST /api/auth/forgot-password ────────────────────────────────────────────
+// Rate-limited (3/hr per IP) to prevent abuse
+router.post(
+  '/forgot-password',
+  forgotPasswordLimiter,
+  authController.authValidation.forgotPassword,
+  authController.forgotPassword,
+);
+
+// ── POST /api/auth/reset-password ─────────────────────────────────────────────
+// Resets password using token from email
+router.post(
+  '/reset-password',
+  authController.authValidation.resetPassword,
+  authController.resetPassword,
 );
 
 module.exports = router;

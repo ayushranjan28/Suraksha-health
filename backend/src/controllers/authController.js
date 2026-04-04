@@ -1,9 +1,12 @@
 'use strict';
 
 const { validationResult, body } = require('express-validator');
+const crypto = require('crypto');
 const User      = require('../models/User');
 const AuditLog  = require('../models/AuditLog');
 const authService = require('../services/authService');
+const emailService = require('../services/emailService');
+const { supabase } = require('../config/db');
 
 // ── Cookie configuration ──────────────────────────────────────────────────────
 
@@ -55,6 +58,26 @@ const authValidation = {
 
     body('password')
       .notEmpty().withMessage('Password is required.'),
+  ],
+
+  forgotPassword: [
+    body('email')
+      .trim()
+      .notEmpty().withMessage('Email is required.')
+      .isEmail().withMessage('Email must be a valid email address.')
+      .normalizeEmail(),
+  ],
+
+  resetPassword: [
+    body('token')
+      .trim()
+      .notEmpty().withMessage('Reset token is required.'),
+
+    body('newPassword')
+      .notEmpty().withMessage('New password is required.')
+      .isLength({ min: 8 }).withMessage('Password must be at least 8 characters.')
+      .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter.')
+      .matches(/[0-9]/).withMessage('Password must contain at least one number.'),
   ],
 };
 
@@ -337,6 +360,161 @@ async function getMe(req, res, next) {
   }
 }
 
+/**
+ * POST /api/auth/forgot-password
+ * Body: { email }
+ * Always returns 200 to prevent email enumeration.
+ */
+async function forgotPassword(req, res, next) {
+  try {
+    assertValid(req);
+
+    const { email } = req.body;
+    const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+    // Always return success to prevent email enumeration
+    const successResponse = {
+      message: 'If that email exists, you will receive a reset link shortly.',
+    };
+
+    const user = await User.findByEmail(email);
+
+    if (!user) {
+      // Don't reveal that the email doesn't exist
+      return res.status(200).json(successResponse);
+    }
+
+    // Generate a random token
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+    // Token expires in 1 hour
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+
+    // Store hashed token in database
+    const { error: insertError } = await supabase
+      .from('password_reset_tokens')
+      .insert({
+        user_id: user.id,
+        token_hash: tokenHash,
+        expires_at: expiresAt,
+        used: false,
+      });
+
+    if (insertError) {
+      console.error('Failed to store password reset token:', insertError);
+      // Still return success to prevent enumeration
+      return res.status(200).json(successResponse);
+    }
+
+    // Build reset link
+    const resetLink = `${FRONTEND_URL}/reset-password?token=${rawToken}`;
+
+    // Send email (non-blocking)
+    emailService.sendPasswordResetEmail(email, resetLink, user.full_name)
+      .catch((err) => console.error('Failed to send password reset email:', err));
+
+    // Audit log
+    AuditLog.create({
+      userId: user.id,
+      action: 'PASSWORD_RESET_REQUESTED',
+      metadata: { email },
+      ...auditContext(req),
+    }).catch((e) => console.error('AuditLog.create (PASSWORD_RESET_REQUESTED) failed:', e.message));
+
+    return res.status(200).json(successResponse);
+  } catch (err) {
+    return next(err);
+  }
+}
+
+/**
+ * POST /api/auth/reset-password
+ * Body: { token, newPassword }
+ */
+async function resetPassword(req, res, next) {
+  try {
+    assertValid(req);
+
+    const { token, newPassword } = req.body;
+
+    // Hash the incoming token to compare with stored hash
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Look up the token
+    const { data: tokenRecord, error: lookupError } = await supabase
+      .from('password_reset_tokens')
+      .select('id, user_id, expires_at, used')
+      .eq('token_hash', tokenHash)
+      .single();
+
+    if (lookupError || !tokenRecord) {
+      const err = new Error('Invalid or expired reset link.');
+      err.status = 400;
+      throw err;
+    }
+
+    // Check if token is used
+    if (tokenRecord.used) {
+      const err = new Error('This reset link has already been used.');
+      err.status = 400;
+      throw err;
+    }
+
+    // Check if token is expired
+    if (new Date(tokenRecord.expires_at) < new Date()) {
+      const err = new Error('This reset link has expired. Please request a new one.');
+      err.status = 400;
+      throw err;
+    }
+
+    // Get the user
+    const user = await User.findById(tokenRecord.user_id);
+    if (!user) {
+      const err = new Error('User not found.');
+      err.status = 400;
+      throw err;
+    }
+
+    // Hash the new password
+    const passwordHash = await authService.hashPassword(newPassword);
+
+    // Update user's password
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ password_hash: passwordHash, updated_at: new Date().toISOString() })
+      .eq('id', user.id);
+
+    if (updateError) {
+      throw new Error(`Failed to update password: ${updateError.message}`);
+    }
+
+    // Mark token as used
+    await supabase
+      .from('password_reset_tokens')
+      .update({ used: true })
+      .eq('id', tokenRecord.id);
+
+    // Revoke all refresh tokens for security
+    await supabase
+      .from('refresh_tokens')
+      .update({ revoked: true })
+      .eq('user_id', user.id);
+
+    // Audit log
+    AuditLog.create({
+      userId: user.id,
+      action: 'PASSWORD_RESET_COMPLETED',
+      metadata: { email: user.email },
+      ...auditContext(req),
+    }).catch((e) => console.error('AuditLog.create (PASSWORD_RESET_COMPLETED) failed:', e.message));
+
+    return res.status(200).json({ message: 'Password reset successfully.' });
+  } catch (err) {
+    return next(err);
+  }
+}
+
 // ── Exports ───────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -346,6 +524,8 @@ module.exports = {
   logout,
   refreshToken,
   getMe,
+  forgotPassword,
+  resetPassword,
 
   // Validation chains (attach to routes)
   authValidation,

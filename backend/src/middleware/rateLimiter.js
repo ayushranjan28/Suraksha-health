@@ -76,10 +76,28 @@ const apiLimiter = rateLimit({
   skip:             skipInDev,       // ← bypass in development
 });
 
+// ── forgotPasswordLimiter ─────────────────────────────────────────────────────
+
+/**
+ * Strict limiter for POST /api/auth/forgot-password.
+ * Production : max 3 requests per IP per hour.
+ * Development: unlimited (skipped entirely).
+ * Prevents abuse of password reset emails.
+ */
+const forgotPasswordLimiter = rateLimit({
+  windowMs:         60 * 60 * 1000,  // 1 hour
+  max:              3,
+  standardHeaders:  true,
+  legacyHeaders:    false,
+  handler:          rateLimitHandler,
+  skipSuccessfulRequests: false,
+  skip:             skipInDev,       // ← bypass in development
+});
+
 // ── Exports ───────────────────────────────────────────────────────────────────
 
 if (isDev) {
   console.log('⚠️  Rate limiting DISABLED (NODE_ENV=development)');
 }
 
-module.exports = { loginLimiter, registerLimiter, apiLimiter };
+module.exports = { loginLimiter, registerLimiter, apiLimiter, forgotPasswordLimiter };
