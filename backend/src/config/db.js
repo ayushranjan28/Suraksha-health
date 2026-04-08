@@ -1,9 +1,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const config = require('./index');
 
-// ── Initialise Supabase client ───────────────────────────
-// Using the service-role key gives the backend full access,
-// bypassing Row Level Security (needed for server-side ops).
+
 const supabase = createClient(config.supabaseUrl, config.supabaseServiceKey);
 
 /**

@@ -1,6 +1,5 @@
 require('dotenv').config();
 
-// ── Required environment variables ───────────────────────
 const REQUIRED_VARS = [
   'SUPABASE_URL',
   'SUPABASE_SERVICE_KEY',
@@ -16,7 +15,6 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
-// ── Export validated config ──────────────────────────────
 module.exports = {
   port:               process.env.PORT               || 5000,
   supabaseUrl:        process.env.SUPABASE_URL,
