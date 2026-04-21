@@ -212,4 +212,48 @@ export const auth = {
   },
 };
 
-export default { apiCall, auth, ApiError };
+// ── Records API Functions ────────────────────────────────────────────────────
+
+import type { HealthRecord, EmergencyRequest } from '@/types/records';
+
+export const records = {
+  async getRecords(patientId?: string): Promise<{ records: HealthRecord[] }> {
+    const query = patientId ? `?patientId=${patientId}` : '';
+    return apiCall<{ records: HealthRecord[] }>(`/api/records${query}`, {
+      method: 'GET',
+    });
+  },
+
+  async createRecord(data: { patientId: string; title: string; content: string }): Promise<{ message: string; record: HealthRecord }> {
+    return apiCall<{ message: string; record: HealthRecord }>('/api/records', {
+      method: 'POST',
+      body: data,
+    });
+  },
+};
+
+// ── Emergency API Functions ──────────────────────────────────────────────────
+
+export const emergency = {
+  async getRequests(): Promise<{ requests: EmergencyRequest[] }> {
+    return apiCall<{ requests: EmergencyRequest[] }>('/api/emergency', {
+      method: 'GET',
+    });
+  },
+
+  async createRequest(data: { patientId: string; reason: string }): Promise<{ message: string; request: EmergencyRequest }> {
+    return apiCall<{ message: string; request: EmergencyRequest }>('/api/emergency', {
+      method: 'POST',
+      body: data,
+    });
+  },
+
+  async updateStatus(id: string, status: 'approved' | 'rejected' | 'revoked'): Promise<{ message: string; request: EmergencyRequest }> {
+    return apiCall<{ message: string; request: EmergencyRequest }>(`/api/emergency/${id}/status`, {
+      method: 'PATCH',
+      body: { status },
+    });
+  },
+};
+
+export default { apiCall, auth, records, emergency, ApiError };

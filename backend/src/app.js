@@ -8,6 +8,8 @@ const config     = require('./config');
 const { apiLimiter }                  = require('./middleware/rateLimiter');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const authRoutes                      = require('./routes/auth');
+const recordsRoutes                   = require('./routes/records');
+const emergencyRoutes                 = require('./routes/emergency');
 
 const app = express();
 
@@ -37,6 +39,8 @@ app.get('/health', (req, res) => {
 
 // ── Feature routes ────────────────────────────────────────
 app.use('/api/auth', authRoutes);
+app.use('/api/records', recordsRoutes);
+app.use('/api/emergency', emergencyRoutes);
 
 // ── 404 & global error handler (must be last) ────────────
 app.use(notFoundHandler);

@@ -40,8 +40,8 @@ export default function DashboardPage() {
       {/* Cards Grid */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         <DashboardCard
-          title="My Health Records"
-          subtitle="0 records"
+          title={user?.role === 'doctor' ? "Patient Records" : "My Health Records"}
+          subtitle="Manage health records"
           href="/dashboard/records"
           icon={<FolderIcon />}
         />
@@ -49,10 +49,12 @@ export default function DashboardPage() {
           title="Recent Activity"
           subtitle="No recent activity"
           icon={<ActivityIcon />}
+          comingSoon
         />
         <DashboardCard
-          title="Emergency Contacts"
-          subtitle="Not configured"
+          title="Emergency Access"
+          subtitle="Manage emergency requests"
+          href="/dashboard/emergency"
           icon={<UsersIcon />}
         />
       </div>
@@ -67,16 +69,18 @@ interface DashboardCardProps {
   href?: string;
 }
 
-function DashboardCard({ title, subtitle, icon, href }: DashboardCardProps) {
+function DashboardCard({ title, subtitle, icon, href, comingSoon }: DashboardCardProps & { comingSoon?: boolean }) {
   const content = (
     <div className="group rounded-xl border border-zinc-200 bg-white p-6 transition-all hover:border-emerald-200 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-emerald-800">
       <div className="mb-4 flex items-start justify-between">
         <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 transition-colors group-hover:bg-emerald-500 group-hover:text-white dark:bg-emerald-900 dark:text-emerald-400 dark:group-hover:bg-emerald-600">
           {icon}
         </div>
-        <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700 dark:bg-amber-900 dark:text-amber-400">
-          Coming soon
-        </span>
+        {comingSoon && (
+          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700 dark:bg-amber-900 dark:text-amber-400">
+            Coming soon
+          </span>
+        )}
       </div>
       <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">
         {title}
