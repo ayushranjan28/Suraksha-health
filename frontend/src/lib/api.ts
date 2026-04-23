@@ -4,6 +4,8 @@ import type {
   LoginPayload,
   RegisterPayload,
   AuthResponse,
+  RegisterResponse,
+  VerifyEmailResponse,
   MeResponse,
   RefreshResponse,
   LogoutResponse,
@@ -19,17 +21,20 @@ const TOKEN_KEY = 'suraksha_access_token';
 
 export class ApiError extends Error {
   status: number;
+  code?: string;
   errors?: Array<{ field: string; message: string }>;
 
   constructor(
     message: string,
     status: number,
-    errors?: Array<{ field: string; message: string }>
+    errors?: Array<{ field: string; message: string }>,
+    code?: string
   ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.errors = errors;
+    this.code = code;
   }
 }
 
@@ -104,7 +109,8 @@ export async function apiCall<T>(
       throw new ApiError(
         errorData.message || 'Unauthorized. Please log in again.',
         401,
-        errorData.errors
+        errorData.errors,
+        errorData.code
       );
     }
 
@@ -114,7 +120,8 @@ export async function apiCall<T>(
       throw new ApiError(
         errorData.message || `Request failed with status ${response.status}`,
         response.status,
-        errorData.errors
+        errorData.errors,
+        errorData.code
       );
     }
 
@@ -141,17 +148,14 @@ export const auth = {
   /**
    * Register a new user account.
    * POST /api/auth/register
+   * Returns message + email (no accessToken — user must verify first).
    */
-  async register(data: RegisterPayload): Promise<AuthResponse> {
-    const response = await apiCall<AuthResponse>('/api/auth/register', {
+  async register(data: RegisterPayload): Promise<RegisterResponse> {
+    return apiCall<RegisterResponse>('/api/auth/register', {
       method: 'POST',
       body: data,
       skipAuth: true,
     });
-
-    // Store the access token
-    setStoredToken(response.accessToken);
-    return response;
   },
 
   /**
@@ -209,6 +213,49 @@ export const auth = {
     // Store the new access token
     setStoredToken(response.accessToken);
     return response;
+  },
+
+  /**
+   * Log in with a Google OAuth ID token.
+   * POST /api/auth/google
+   */
+  async googleLogin(idToken: string): Promise<AuthResponse> {
+    const response = await apiCall<AuthResponse>('/api/auth/google', {
+      method: 'POST',
+      body: { idToken },
+      skipAuth: true,
+    });
+
+    // Store the access token
+    setStoredToken(response.accessToken);
+    return response;
+  },
+
+  /**
+   * Verify an email address using the token from the verification email.
+   * GET /api/auth/verify-email?token={token}
+   */
+  async verifyEmail(token: string): Promise<VerifyEmailResponse> {
+    const response = await apiCall<VerifyEmailResponse>(`/api/auth/verify-email?token=${encodeURIComponent(token)}`, {
+      method: 'GET',
+      skipAuth: true,
+    });
+
+    // Store the access token (user is now logged in)
+    setStoredToken(response.accessToken);
+    return response;
+  },
+
+  /**
+   * Resend the email verification link.
+   * POST /api/auth/resend-verification
+   */
+  async resendVerification(email: string): Promise<{ message: string }> {
+    return apiCall<{ message: string }>('/api/auth/resend-verification', {
+      method: 'POST',
+      body: { email },
+      skipAuth: true,
+    });
   },
 };
 

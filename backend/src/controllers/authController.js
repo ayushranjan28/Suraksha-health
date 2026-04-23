@@ -4,9 +4,11 @@ const { validationResult, body } = require('express-validator');
 const crypto = require('crypto');
 const User      = require('../models/User');
 const AuditLog  = require('../models/AuditLog');
-const authService = require('../services/authService');
-const emailService = require('../services/emailService');
+const authService       = require('../services/authService');
+const emailService      = require('../services/emailService');
+const googleAuthService = require('../services/googleAuthService');
 const { supabase } = require('../config/db');
+const config = require('../config');
 
 // ── Cookie configuration ──────────────────────────────────────────────────────
 
@@ -79,6 +81,14 @@ const authValidation = {
       .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter.')
       .matches(/[0-9]/).withMessage('Password must contain at least one number.'),
   ],
+
+  resendVerification: [
+    body('email')
+      .trim()
+      .notEmpty().withMessage('Email is required.')
+      .isEmail().withMessage('Email must be a valid email address.')
+      .normalizeEmail(),
+  ],
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -131,10 +141,12 @@ async function issueTokensAndSetCookie(userId, role, res) {
  */
 function publicUser(user) {
   return {
-    id:       user.id,
-    email:    user.email,
-    fullName: user.full_name,
-    role:     user.role,
+    id:           user.id,
+    email:        user.email,
+    fullName:     user.full_name,
+    role:         user.role,
+    avatarUrl:    user.avatar_url    || null,
+    authProvider: user.auth_provider || 'email',
   };
 }
 
@@ -143,6 +155,9 @@ function publicUser(user) {
 /**
  * POST /api/auth/register
  * Body: { email, password, fullName, role? }
+ *
+ * Creates the user but does NOT issue tokens.
+ * Sends a verification email instead — user must verify before logging in.
  */
 async function register(req, res, next) {
   try {
@@ -161,23 +176,32 @@ async function register(req, res, next) {
     // 2. Hash password
     const passwordHash = await authService.hashPassword(password);
 
-    // 3. Persist user (no password_hash in returned object)
+    // 3. Persist user (email_verified defaults to false)
     const user = await User.create({ email, passwordHash, fullName, role });
 
-    // 4. Issue tokens + cookie
-    const accessToken = await issueTokensAndSetCookie(user.id, user.role, res);
+    // 4. Generate email verification token
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
 
-    // 5. Audit log (non-blocking — we don't await failure propagation)
+    await User.setVerificationToken(user.id, tokenHash, expiresAt);
+
+    // 5. Send verification email (non-blocking)
+    const verificationLink = `${config.frontendUrl}/verify-email?token=${rawToken}`;
+    emailService.sendVerificationEmail(email, verificationLink, fullName)
+      .catch((err) => console.error('Failed to send verification email:', err));
+
+    // 6. Audit log
     AuditLog.create({
       userId:   user.id,
-      action:   'REGISTER',
+      action:   'REGISTER_PENDING_VERIFICATION',
       metadata: { email },
       ...auditContext(req),
-    }).catch((e) => console.error('AuditLog.create (REGISTER) failed:', e.message));
+    }).catch((e) => console.error('AuditLog.create (REGISTER_PENDING_VERIFICATION) failed:', e.message));
 
     return res.status(201).json({
-      user:        publicUser(user),
-      accessToken,
+      message: 'Account created! Please check your email to verify your account.',
+      email: user.email,
     });
   } catch (err) {
     return next(err);
@@ -218,6 +242,15 @@ async function login(req, res, next) {
       const err = new Error(GENERIC_MSG);
       err.status = 401;
       throw err;
+    }
+
+    // Block login for unverified email users
+    if (!user.email_verified && user.auth_provider === 'email') {
+      return res.status(403).json({
+        code: 'EMAIL_NOT_VERIFIED',
+        message: 'Please verify your email before logging in.',
+        email: user.email,
+      });
     }
 
     const accessToken = await issueTokensAndSetCookie(user.id, user.role, res);
@@ -384,6 +417,13 @@ async function forgotPassword(req, res, next) {
       return res.status(200).json(successResponse);
     }
 
+    // Block password reset for Google OAuth users
+    if (user.auth_provider === 'google') {
+      return res.status(400).json({
+        message: 'This account uses Google Sign-In. Please use Google to access your account.',
+      });
+    }
+
     // Generate a random token
     const rawToken = crypto.randomBytes(32).toString('hex');
     const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
@@ -515,6 +555,178 @@ async function resetPassword(req, res, next) {
   }
 }
 
+// ── Google OAuth ──────────────────────────────────────────────────────────────
+
+/**
+ * POST /api/auth/google
+ * Body: { idToken } — the credential string from Google Sign-In
+ */
+async function googleAuth(req, res, next) {
+  try {
+    const { idToken } = req.body;
+
+    if (!idToken) {
+      const err = new Error('Google ID token is required.');
+      err.status = 400;
+      throw err;
+    }
+
+    // 1. Verify the Google token
+    let googleUser;
+    try {
+      googleUser = await googleAuthService.verifyGoogleToken(idToken);
+    } catch (verifyErr) {
+      const err = new Error('Invalid Google token.');
+      err.status = 401;
+      throw err;
+    }
+
+    const { googleId, email, fullName, avatarUrl } = googleUser;
+
+    // 2. Check if a user with this Google ID already exists
+    let user = await User.findByGoogleId(googleId);
+
+    if (!user) {
+      // 3. Check if an email-based account already exists
+      const existingByEmail = await User.findByEmail(email);
+
+      if (existingByEmail) {
+        if (existingByEmail.auth_provider === 'email') {
+          const err = new Error(
+            'An account with this email already exists. Please sign in with your password.',
+          );
+          err.status = 409;
+          throw err;
+        }
+        // If auth_provider is 'google' but google_id didn't match — shouldn't happen,
+        // but use the existing record.
+        user = existingByEmail;
+      } else {
+        // 4. Create new Google user
+        user = await User.createGoogleUser({ email, fullName, googleId, avatarUrl });
+      }
+    }
+
+    // 5. Issue tokens + cookie (same as email login)
+    const accessToken = await issueTokensAndSetCookie(user.id, user.role, res);
+
+    // 6. Audit log
+    AuditLog.create({
+      userId:   user.id,
+      action:   'GOOGLE_LOGIN',
+      metadata: { email, googleId },
+      ...auditContext(req),
+    }).catch((e) => console.error('AuditLog.create (GOOGLE_LOGIN) failed:', e.message));
+
+    return res.status(200).json({
+      user:        publicUser(user),
+      accessToken,
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+// ── Email Verification ────────────────────────────────────────────────────────
+
+/**
+ * GET /api/auth/verify-email?token=...
+ * Verifies a user's email and logs them in immediately.
+ */
+async function verifyEmail(req, res, next) {
+  try {
+    const { token } = req.query;
+
+    if (!token) {
+      const err = new Error('Verification token is required.');
+      err.status = 400;
+      throw err;
+    }
+
+    // Hash the incoming token to compare with stored hash
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Look up user by verification token (checks expiry too)
+    const user = await User.findByVerificationToken(tokenHash);
+
+    if (!user) {
+      const err = new Error('Verification link is invalid or has expired.');
+      err.status = 400;
+      err.code = 'INVALID_TOKEN';
+      throw err;
+    }
+
+    // Mark email as verified
+    const verifiedUser = await User.verifyEmail(user.id);
+
+    // Issue tokens and log them in immediately
+    const accessToken = await issueTokensAndSetCookie(verifiedUser.id, verifiedUser.role, res);
+
+    // Audit log
+    AuditLog.create({
+      userId: verifiedUser.id,
+      action: 'EMAIL_VERIFIED',
+      metadata: { email: verifiedUser.email },
+      ...auditContext(req),
+    }).catch((e) => console.error('AuditLog.create (EMAIL_VERIFIED) failed:', e.message));
+
+    return res.status(200).json({
+      message: 'Email verified successfully!',
+      user: publicUser(verifiedUser),
+      accessToken,
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+/**
+ * POST /api/auth/resend-verification
+ * Body: { email }
+ * Always returns 200 to prevent email enumeration.
+ */
+async function resendVerification(req, res, next) {
+  try {
+    assertValid(req);
+
+    const { email } = req.body;
+
+    // Always return success to prevent enumeration
+    const successResponse = {
+      message: 'If that email exists and is unverified, we sent a new verification link.',
+    };
+
+    const user = await User.findByEmail(email);
+
+    // Only resend if: user exists, not verified, and email auth provider
+    if (user && !user.email_verified && user.auth_provider === 'email') {
+      // Generate new token
+      const rawToken = crypto.randomBytes(32).toString('hex');
+      const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
+
+      await User.setVerificationToken(user.id, tokenHash, expiresAt);
+
+      // Send verification email (non-blocking)
+      const verificationLink = `${config.frontendUrl}/verify-email?token=${rawToken}`;
+      emailService.sendVerificationEmail(email, verificationLink, user.full_name)
+        .catch((err) => console.error('Failed to send verification email:', err));
+
+      // Audit log
+      AuditLog.create({
+        userId: user.id,
+        action: 'VERIFICATION_EMAIL_RESENT',
+        metadata: { email },
+        ...auditContext(req),
+      }).catch((e) => console.error('AuditLog.create (VERIFICATION_EMAIL_RESENT) failed:', e.message));
+    }
+
+    return res.status(200).json(successResponse);
+  } catch (err) {
+    return next(err);
+  }
+}
+
 // ── Exports ───────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -526,6 +738,9 @@ module.exports = {
   getMe,
   forgotPassword,
   resetPassword,
+  googleAuth,
+  verifyEmail,
+  resendVerification,
 
   // Validation chains (attach to routes)
   authValidation,
