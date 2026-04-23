@@ -4,6 +4,9 @@ const REQUIRED_VARS = [
   'SUPABASE_URL',
   'SUPABASE_SERVICE_KEY',
   'JWT_SECRET',
+  'GOOGLE_CLIENT_ID',
+  'GMAIL_USER',
+  'GMAIL_APP_PASSWORD',
 ];
 
 const missing = REQUIRED_VARS.filter((key) => !process.env[key]);
@@ -29,4 +32,15 @@ module.exports = {
   bcryptRounds:       parseInt(process.env.BCRYPT_ROUNDS, 10) || 12,
   jwtAccessExpiry:    process.env.JWT_ACCESS_EXPIRY   || '15m',
   jwtRefreshExpiry:   process.env.JWT_REFRESH_EXPIRY  || '7d',
+
+  // Google OAuth
+  googleClientId:     process.env.GOOGLE_CLIENT_ID,
+
+  // Email (Gmail SMTP)
+  gmailUser:          process.env.GMAIL_USER,
+  gmailAppPassword:   process.env.GMAIL_APP_PASSWORD,
+  emailFromName:      process.env.EMAIL_FROM_NAME || 'Suraksha Health',
+
+  // Frontend
+  frontendUrl:        process.env.FRONTEND_URL || 'http://localhost:3000',
 };

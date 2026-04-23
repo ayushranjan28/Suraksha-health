@@ -24,6 +24,7 @@ type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>;
 export default function ForgotPasswordPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isGoogleUser, setIsGoogleUser] = useState(false);
 
   const {
     register,
@@ -36,6 +37,9 @@ export default function ForgotPasswordPage() {
 
   async function onSubmit(data: ForgotPasswordFormData) {
     setIsSubmitting(true);
+    setIsGoogleUser(false);
+
+    let detectedGoogleUser = false;
 
     try {
       await apiCall('/api/auth/forgot-password', {
@@ -43,12 +47,103 @@ export default function ForgotPasswordPage() {
         body: data,
         skipAuth: true,
       });
-    } catch {
-      // Ignore errors - we always show success message
+    } catch (err: unknown) {
+      // Check if this is a Google OAuth user
+      const error = err as { status?: number; message?: string };
+      if (
+        error.status === 400 &&
+        error.message?.includes('Google Sign-In')
+      ) {
+        detectedGoogleUser = true;
+        setIsGoogleUser(true);
+      }
+      // Ignore other errors - we always show success message
     } finally {
       setIsSubmitting(false);
-      setIsSubmitted(true);
+      if (!detectedGoogleUser) {
+        setIsSubmitted(true);
+      }
     }
+  }
+
+  // ── Google user banner ───────────────────────────────────────────────────────
+
+  if (isGoogleUser) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30 mb-4">
+            <svg className="w-8 h-8" viewBox="0 0 24 24">
+              <path
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
+                fill="#4285F4"
+              />
+              <path
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                fill="#34A853"
+              />
+              <path
+                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                fill="#FBBC05"
+              />
+              <path
+                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                fill="#EA4335"
+              />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+            Google Account Detected
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">
+            This account was created with Google. Click below to sign in with Google instead.
+          </p>
+          <Link
+            href="/login"
+            className="inline-flex items-center justify-center w-full px-4 py-3 rounded-lg text-white font-medium bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 mb-4"
+          >
+            <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
+              <path
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
+                fill="#fff"
+              />
+              <path
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                fill="#fff"
+              />
+              <path
+                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                fill="#fff"
+              />
+              <path
+                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                fill="#fff"
+              />
+            </svg>
+            Sign in with Google
+          </Link>
+          <Link
+            href="/login"
+            className="inline-flex items-center text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 font-medium"
+          >
+            <svg
+              className="w-4 h-4 mr-2"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M10 19l-7-7m0 0l7-7m-7 7h18"
+              />
+            </svg>
+            Back to login
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   if (isSubmitted) {
