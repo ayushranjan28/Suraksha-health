@@ -6,6 +6,9 @@ export interface User {
   fullName: string;
   role: 'patient' | 'doctor' | 'admin';
   abhaId?: string | null;
+  avatarUrl?: string | null;
+  authProvider?: 'email' | 'google';
+  emailVerified?: boolean;
   createdAt: string;
   updatedAt: string;
   isActive: boolean;
@@ -32,6 +35,17 @@ export interface AuthResponse {
   accessToken: string;
 }
 
+export interface RegisterResponse {
+  message: string;
+  email: string;
+}
+
+export interface VerifyEmailResponse {
+  message: string;
+  user: User;
+  accessToken: string;
+}
+
 export interface MeResponse {
   user: User;
 }
@@ -49,5 +63,6 @@ export interface LogoutResponse {
 export interface ApiErrorResponse {
   status: 'error';
   message: string;
+  code?: string;
   errors?: Array<{ field: string; message: string }>;
 }

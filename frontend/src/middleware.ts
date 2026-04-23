@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 // ── Public routes that don't require authentication ──────────────────────────
-const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password'];
+const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/check-email', '/verify-email'];
 
 // ── Routes that require authentication ───────────────────────────────────────
 const PROTECTED_PREFIXES = ['/dashboard'];

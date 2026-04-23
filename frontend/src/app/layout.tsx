@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -18,6 +19,8 @@ export const metadata: Metadata = {
   description: "Decentralized Emergency Health Vault - Secure medical records management",
 };
 
+const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -29,7 +32,9 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <AuthProvider>{children}</AuthProvider>
+        <GoogleOAuthProvider clientId={googleClientId}>
+          <AuthProvider>{children}</AuthProvider>
+        </GoogleOAuthProvider>
       </body>
     </html>
   );

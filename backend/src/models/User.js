@@ -8,13 +8,17 @@ const { supabase } = require('../config/db');
  * @property {string}  full_name
  * @property {string}  role          - 'patient' | 'doctor' | 'admin'
  * @property {string|null} abha_id
+ * @property {string|null} google_id
+ * @property {string|null} avatar_url
+ * @property {string}  auth_provider - 'email' | 'google'
+ * @property {boolean} email_verified
  * @property {string}  created_at
  * @property {string}  updated_at
  * @property {boolean} is_active
  */
 
 /** Columns returned for public-facing queries (no password_hash) */
-const PUBLIC_COLUMNS = 'id, email, full_name, role, abha_id, created_at, updated_at, is_active';
+const PUBLIC_COLUMNS = 'id, email, full_name, role, abha_id, google_id, avatar_url, auth_provider, email_verified, created_at, updated_at, is_active';
 
 /** Columns returned when password_hash is needed (login) */
 const ALL_COLUMNS = '*, password_hash';
@@ -43,6 +47,7 @@ class User {
         password_hash: passwordHash,
         full_name: fullName,
         role,
+        email_verified: false,
       })
       .select(PUBLIC_COLUMNS)
       .single();
@@ -104,6 +109,147 @@ class User {
     if (error) {
       if (error.code === 'PGRST116') return null;
       throw new Error(`User.findById failed: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  // ────────────────────────────────────────────────────────
+  // GOOGLE AUTH
+  // ────────────────────────────────────────────────────────
+
+  /**
+   * Find a user by Google ID — returns public columns only.
+   *
+   * @param {string} googleId - Google sub claim
+   * @returns {Promise<Omit<UserRow, 'password_hash'> | null>}
+   */
+  static async findByGoogleId(googleId) {
+    const { data, error } = await supabase
+      .from('users')
+      .select(PUBLIC_COLUMNS)
+      .eq('google_id', googleId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`User.findByGoogleId failed: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  /**
+   * Create a new user via Google OAuth.
+   * password_hash is null (Google users have no password).
+   *
+   * @param {Object} params
+   * @param {string} params.email
+   * @param {string} params.fullName
+   * @param {string} params.googleId
+   * @param {string|null} params.avatarUrl
+   * @returns {Promise<Omit<UserRow, 'password_hash'>>} Created user (no password_hash)
+   * @throws {Error} On DB error
+   */
+  static async createGoogleUser({ email, fullName, googleId, avatarUrl }) {
+    const { data, error } = await supabase
+      .from('users')
+      .insert({
+        email,
+        password_hash: null,
+        full_name:     fullName,
+        role:          'patient',
+        google_id:     googleId,
+        avatar_url:    avatarUrl,
+        auth_provider: 'google',
+        email_verified: true,
+      })
+      .select(PUBLIC_COLUMNS)
+      .single();
+
+    if (error) {
+      if (error.code === '23505') {
+        const conflict = new Error('An account with that email already exists.');
+        conflict.status = 409;
+        throw conflict;
+      }
+      const dbErr = new Error(`User.createGoogleUser failed: ${error.message}`);
+      dbErr.status = 500;
+      throw dbErr;
+    }
+
+    return data;
+  }
+
+  // ────────────────────────────────────────────────────────
+  // EMAIL VERIFICATION
+  // ────────────────────────────────────────────────────────
+
+  /**
+   * Mark a user's email as verified and clear the verification token.
+   *
+   * @param {string} userId - UUID
+   * @returns {Promise<Omit<UserRow, 'password_hash'>>} Updated user
+   */
+  static async verifyEmail(userId) {
+    const { data, error } = await supabase
+      .from('users')
+      .update({
+        email_verified: true,
+        email_verification_token_hash: null,
+        email_verification_expires_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', userId)
+      .select(PUBLIC_COLUMNS)
+      .single();
+
+    if (error) {
+      throw new Error(`User.verifyEmail failed: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  /**
+   * Store a hashed verification token and expiry on the user row.
+   *
+   * @param {string} userId    - UUID
+   * @param {string} tokenHash - SHA-256 hash of the raw token
+   * @param {string} expiresAt - ISO 8601 timestamp
+   */
+  static async setVerificationToken(userId, tokenHash, expiresAt) {
+    const { error } = await supabase
+      .from('users')
+      .update({
+        email_verification_token_hash: tokenHash,
+        email_verification_expires_at: expiresAt,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', userId);
+
+    if (error) {
+      throw new Error(`User.setVerificationToken failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Find a user by their verification token hash (must not be expired).
+   *
+   * @param {string} tokenHash - SHA-256 hash of the raw token
+   * @returns {Promise<UserRow | null>}
+   */
+  static async findByVerificationToken(tokenHash) {
+    const { data, error } = await supabase
+      .from('users')
+      .select(ALL_COLUMNS)
+      .eq('email_verification_token_hash', tokenHash)
+      .gt('email_verification_expires_at', new Date().toISOString())
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`User.findByVerificationToken failed: ${error.message}`);
     }
 
     return data;
