@@ -4,13 +4,20 @@ A full-stack application for securely managing medical records with emergency br
 
 ## 🎯 Features
 
+### ✅ Implemented
 - **🔐 Secure Authentication** — JWT access/refresh token system with httpOnly cookies
+- **🔑 Google OAuth** — One-click sign-in with Google (via `@react-oauth/google`)
+- **📧 Email Verification** — New users must verify their email before accessing the app
+- **🔁 Password Reset** — Email-based password recovery via Nodemailer (SMTP)
 - **👤 Role-Based Access** — Patient, Doctor, and Admin roles with granular permissions
-- **🔑 Password Reset** — Email-based password recovery via Resend
 - **📱 Responsive UI** — Mobile-first design with Tailwind CSS
 - **🛡️ Security First** — Rate limiting, password hashing (bcrypt), audit logging
-- **🏥 Health Records** — *(Coming Soon)* Encrypted health record storage
-- **🚨 Emergency Access** — *(Coming Soon)* Break-glass procedures for emergencies
+- **⛓️ Web3 Vault** — Smart contract layer for on-chain health record storage
+
+### 🚧 Coming Soon
+- **🏥 Health Records** — Encrypted health record CRUD
+- **🚨 Emergency Access** — Break-glass procedures for emergencies
+- **📊 Dashboard** — Patient/Doctor dashboards with analytics
 
 ## 🛠️ Tech Stack
 
@@ -19,8 +26,9 @@ A full-stack application for securely managing medical records with emergency br
 | **Frontend** | Next.js 14 (App Router), TypeScript, Tailwind CSS |
 | **Backend** | Express.js, Node.js |
 | **Database** | Supabase (PostgreSQL) |
-| **Auth** | JWT (access + refresh tokens), bcrypt |
-| **Email** | Resend |
+| **Auth** | JWT (access + refresh tokens), bcrypt, Google OAuth |
+| **Email** | Nodemailer (SMTP) |
+| **Web3** | Solidity smart contracts |
 | **Validation** | Zod (frontend), express-validator (backend) |
 
 ## 📂 Project Structure
@@ -31,25 +39,42 @@ suraksha-health/
 │   ├── src/
 │   │   ├── config/          # Database & app configuration
 │   │   ├── controllers/     # Route handlers (auth, etc.)
-│   │   ├── middleware/      # Auth, rate limiting, error handling
+│   │   ├── middleware/       # Auth, rate limiting, error handling
 │   │   ├── models/          # Database models (User, AuditLog)
 │   │   ├── routes/          # API route definitions
-│   │   └── services/        # Business logic (auth, email)
+│   │   └── services/        # Business logic
+│   │       ├── authService.js          # JWT & password auth
+│   │       ├── emailService.js         # Nodemailer email delivery
+│   │       └── googleAuthService.js    # Google OAuth token verification
 │   ├── server.js            # Server entry point
 │   └── .env                 # Environment variables (not tracked)
 │
 ├── frontend/                # Next.js 14 App
 │   ├── src/
 │   │   ├── app/             # App Router pages
-│   │   │   ├── (auth)/      # Auth pages (login, register, etc.)
+│   │   │   ├── (auth)/      # Auth pages
+│   │   │   │   ├── login/           # Login page
+│   │   │   │   ├── register/        # Registration page
+│   │   │   │   ├── forgot-password/ # Password reset request
+│   │   │   │   ├── reset-password/  # New password form
+│   │   │   │   ├── check-email/     # "Check your email" prompt
+│   │   │   │   └── verify-email/    # Email verification handler
 │   │   │   └── dashboard/   # Protected dashboard pages
-│   │   ├── components/      # Reusable UI components
+│   │   ├── components/
+│   │   │   ├── auth/        # Auth components (GoogleLoginButton, etc.)
+│   │   │   └── ui/          # Shared UI components
 │   │   ├── context/         # React contexts (AuthContext)
-│   │   └── lib/             # Utilities (API client, helpers)
+│   │   ├── lib/             # Utilities (API client, helpers)
+│   │   └── types/           # TypeScript type definitions
 │   └── .env.local           # Frontend environment variables
 │
+├── web3-vault/              # Smart Contract Layer
+│   ├── contracts/           # Solidity contracts
+│   ├── crypto/              # Encryption utilities
+│   └── backend/             # Web3 backend integration
+│
 ├── database/                # SQL migration scripts
-├── API_CONTRACT.md          # 📄 Full API documentation for Dev 2
+├── API_CONTRACT.md          # 📄 Full API documentation
 └── README.md
 ```
 
@@ -59,7 +84,8 @@ suraksha-health/
 
 - Node.js v18+
 - Supabase account (free tier works)
-- Resend account for password reset emails (optional)
+- Google Cloud Console project (for OAuth client ID)
+- SMTP email credentials (Gmail App Password, or any SMTP provider)
 
 ### Environment Setup
 
@@ -81,14 +107,22 @@ JWT_REFRESH_EXPIRY=7d
 # CORS
 CORS_ORIGIN=http://localhost:3000
 
-# Email (optional - for password reset)
-RESEND_API_KEY=re_xxxxxxxxxxxx
+# Google OAuth
+GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+
+# Email (Nodemailer SMTP)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+EMAIL_FROM='"Suraksha Health" <your-email@gmail.com>'
 FRONTEND_URL=http://localhost:3000
 ```
 
 **Frontend (`frontend/.env.local`):**
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:5000
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 ```
 
 ### Running the Backend
@@ -96,7 +130,7 @@ NEXT_PUBLIC_API_URL=http://localhost:5000
 ```bash
 cd backend
 npm install
-node server.js
+npm run dev
 ```
 
 Server runs at `http://localhost:5000`
@@ -115,11 +149,8 @@ App runs at `http://localhost:3000`
 
 ### Database Setup
 
-Run the SQL scripts in `database/` folder in your Supabase SQL editor:
-1. Create `users` table
-2. Create `refresh_tokens` table
-3. Create `audit_log` table
-4. Create `password_reset_tokens` table
+Run the SQL script in `database/` folder in your Supabase SQL editor:
+- `suraksha_health_schema.sql` — Creates all required tables (`users`, `refresh_tokens`, `audit_log`, `password_reset_tokens`)
 
 ---
 
@@ -137,34 +168,53 @@ See **[API_CONTRACT.md](./API_CONTRACT.md)** for complete API documentation incl
 
 ## 🔐 Authentication Flow
 
+### Email + Password
 ```
 ┌─────────────┐         ┌─────────────┐         ┌─────────────┐
 │   Frontend  │         │   Backend   │         │  Supabase   │
 └──────┬──────┘         └──────┬──────┘         └──────┬──────┘
        │                       │                       │
-       │  POST /auth/login     │                       │
-       │──────────────────────>│                       │
-       │                       │  Verify credentials   │
+       │  POST /auth/register  │                       │
+       │──────────────────────>│  Create user           │
        │                       │──────────────────────>│
-       │                       │<──────────────────────│
+       │  "Check your email"   │  Send verification    │
+       │<──────────────────────│  email (Nodemailer)   │
+       │                       │                       │
+       │  GET /auth/verify?    │                       │
+       │  token=xxx            │  Mark email verified  │
+       │──────────────────────>│──────────────────────>│
+       │                       │                       │
+       │  POST /auth/login     │                       │
+       │──────────────────────>│  Verify credentials   │
+       │                       │──────────────────────>│
        │  { accessToken }      │                       │
        │  + refreshToken cookie│                       │
        │<──────────────────────│                       │
-       │                       │                       │
-       │  GET /api/records     │                       │
-       │  Authorization: Bearer│                       │
-       │──────────────────────>│                       │
-       │                       │  Validate JWT         │
-       │  { records }          │                       │
-       │<──────────────────────│                       │
-       │                       │                       │
-       │  (token expires)      │                       │
        │                       │                       │
        │  POST /auth/refresh   │                       │
        │  (cookie sent auto)   │                       │
        │──────────────────────>│                       │
        │  { newAccessToken }   │                       │
        │<──────────────────────│                       │
+```
+
+### Google OAuth
+```
+┌─────────────┐     ┌──────────┐     ┌─────────────┐     ┌───────────┐
+│   Frontend  │     │  Google  │     │   Backend   │     │ Supabase  │
+└──────┬──────┘     └────┬─────┘     └──────┬──────┘     └─────┬─────┘
+       │                  │                  │                   │
+       │  Google Sign-In  │                  │                   │
+       │─────────────────>│                  │                   │
+       │  { idToken }     │                  │                   │
+       │<─────────────────│                  │                   │
+       │                  │                  │                   │
+       │  POST /auth/google { idToken }      │                   │
+       │────────────────────────────────────>│  Verify token     │
+       │                  │                  │  Find/create user │
+       │                  │                  │──────────────────>│
+       │  { accessToken } + refreshToken     │                   │
+       │<────────────────────────────────────│                   │
 ```
 
 ---
@@ -175,8 +225,8 @@ See **[API_CONTRACT.md](./API_CONTRACT.md)** for complete API documentation incl
 
 | Developer | Responsibility | Status |
 |-----------|---------------|--------|
-| **Dev 1** | Auth system, database setup, login/register UI | ✅ Complete |
-| **Dev 2** | Records management, emergency access features | 🚧 Starting |
+| **Dev 1** | Auth system (JWT + Google OAuth), email verification, password reset, database setup, login/register UI | ✅ Complete |
+| **Dev 2** | Records management, emergency access features, dashboards | 🚧 Starting |
 
 ### For Dev 2: Getting Started
 
@@ -228,7 +278,3 @@ curl -X POST http://localhost:5000/api/auth/login \
 ## 📝 License
 
 Private project — all rights reserved.
-
----
-
-
