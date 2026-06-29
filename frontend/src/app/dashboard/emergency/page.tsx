@@ -13,6 +13,7 @@ export default function EmergencyPage() {
 
   const [patientId, setPatientId] = useState('');
   const [reason, setReason] = useState('');
+  const [durations, setDurations] = useState<Record<string, number>>({});
 
   useEffect(() => {
     fetchRequests();
@@ -44,10 +45,10 @@ export default function EmergencyPage() {
     }
   };
 
-  const handleStatusUpdate = async (id: string, status: 'approved' | 'rejected' | 'revoked') => {
+  const handleStatusUpdate = async (id: string, status: 'approved' | 'rejected' | 'revoked', expiresInHours?: number) => {
     try {
       setError('');
-      await emergencyApi.updateStatus(id, status);
+      await emergencyApi.updateStatus(id, status, expiresInHours);
       fetchRequests();
     } catch (err: unknown) {
       setError((err as Error).message || 'Failed to update status');
@@ -109,9 +110,19 @@ export default function EmergencyPage() {
               </div>
               
               {user?.role === 'patient' && req.status === 'pending' && (
-                <div className="flex gap-2">
-                  <button onClick={() => handleStatusUpdate(req.id, 'approved')} className="bg-green-600 text-white px-4 py-2 rounded text-sm">Approve</button>
-                  <button onClick={() => handleStatusUpdate(req.id, 'rejected')} className="bg-zinc-200 text-zinc-800 px-4 py-2 rounded text-sm dark:bg-zinc-800 dark:text-zinc-200">Reject</button>
+                <div className="flex flex-col sm:flex-row gap-2 mt-4 md:mt-0">
+                  <select 
+                    onChange={(e) => setDurations({...durations, [req.id]: parseInt(e.target.value)})} 
+                    className="border p-2 text-sm rounded dark:bg-zinc-800 dark:border-zinc-700 h-9"
+                    defaultValue={24}
+                  >
+                    <option value={1}>1 Hour</option>
+                    <option value={24}>24 Hours</option>
+                    <option value={168}>7 Days</option>
+                    <option value={0}>Permanent</option>
+                  </select>
+                  <button onClick={() => handleStatusUpdate(req.id, 'approved', durations[req.id] !== undefined ? durations[req.id] : 24)} className="bg-green-600 text-white px-4 h-9 rounded text-sm hover:bg-green-700">Approve</button>
+                  <button onClick={() => handleStatusUpdate(req.id, 'rejected')} className="bg-zinc-200 text-zinc-800 px-4 h-9 rounded text-sm dark:bg-zinc-800 dark:text-zinc-200 hover:bg-zinc-300 dark:hover:bg-zinc-700">Reject</button>
                 </div>
               )}
               {user?.role === 'patient' && req.status === 'approved' && new Date(req.expires_at || '') > new Date() && (

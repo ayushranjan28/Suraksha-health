@@ -99,7 +99,7 @@ class EmergencyRequest {
       .eq('patient_id', patientId)
       .eq('doctor_id', doctorId)
       .eq('status', 'approved')
-      .gt('expires_at', new Date().toISOString())
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
       .limit(1);
 
     if (error) throw new Error(`EmergencyRequest.hasActiveAccess failed: ${error.message}`);

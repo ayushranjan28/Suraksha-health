@@ -1,5 +1,6 @@
 const EmergencyRequest = require('../models/EmergencyRequest');
 const User = require('../models/User');
+const Delegate = require('../models/Delegate');
 
 exports.createRequest = async (req, res, next) => {
   try {
@@ -30,6 +31,13 @@ exports.getRequests = async (req, res, next) => {
     let requests = [];
     if (role === 'patient') {
       requests = await EmergencyRequest.findByPatient(userId);
+      
+      const delegatedPatientIds = await Delegate.getPatientsForDelegate(userId);
+      for (const pid of delegatedPatientIds) {
+        const delReqs = await EmergencyRequest.findByPatient(pid);
+        // Add a flag to indicate these are delegated requests
+        requests = requests.concat(delReqs.map(r => ({ ...r, isDelegated: true })));
+      }
     } else if (role === 'doctor') {
       requests = await EmergencyRequest.findByDoctor(userId);
     }
@@ -55,17 +63,40 @@ exports.updateRequestStatus = async (req, res, next) => {
       return res.status(404).json({ error: 'Emergency request not found' });
     }
 
-    // Only patient can approve/reject/revoke
-    if (role !== 'patient' || request.patient_id !== userId) {
+    // Patient or Delegate can approve/reject/revoke
+    let isAuthorized = false;
+    if (role === 'patient') {
+      if (request.patient_id === userId) {
+        isAuthorized = true;
+      } else {
+        const delegatedPatientIds = await Delegate.getPatientsForDelegate(userId);
+        if (delegatedPatientIds.includes(request.patient_id)) {
+          isAuthorized = true;
+        }
+      }
+    }
+
+    if (!isAuthorized) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
     let expiresAt = null;
     if (status === 'approved') {
-      // Set expiration to 24 hours from now
-      const expiry = new Date();
-      expiry.setHours(expiry.getHours() + 24);
-      expiresAt = expiry.toISOString();
+      const { expiresInHours } = req.body;
+      if (expiresInHours !== undefined) {
+        if (expiresInHours === 0) {
+          expiresAt = null; // Permanent
+        } else {
+          const expiry = new Date();
+          expiry.setHours(expiry.getHours() + parseInt(expiresInHours));
+          expiresAt = expiry.toISOString();
+        }
+      } else {
+        // Default to 24 hours if not specified
+        const expiry = new Date();
+        expiry.setHours(expiry.getHours() + 24);
+        expiresAt = expiry.toISOString();
+      }
     }
 
     const updatedRequest = await EmergencyRequest.updateStatus(id, status, expiresAt);

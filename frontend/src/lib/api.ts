@@ -304,11 +304,30 @@ export const emergency = {
     });
   },
 
-  async updateStatus(id: string, status: 'approved' | 'rejected' | 'revoked'): Promise<{ message: string; request: EmergencyRequest }> {
+  async updateStatus(id: string, status: 'approved' | 'rejected' | 'revoked', expiresInHours?: number): Promise<{ message: string; request: EmergencyRequest }> {
     return apiCall<{ message: string; request: EmergencyRequest }>(`/api/emergency/${id}/status`, {
       method: 'PATCH',
-      body: { status },
+      body: { status, expiresInHours },
     });
+  },
+};
+
+export const delegates = {
+  async add(email: string): Promise<{ message: string; delegate: any }> {
+    return apiCall<{ message: string; delegate: any }>('/api/delegates', {
+      method: 'POST',
+      body: { email },
+    });
+  },
+
+  async remove(id: string): Promise<{ message: string }> {
+    return apiCall<{ message: string }>(`/api/delegates/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async get(): Promise<{ delegates: any[] }> {
+    return apiCall<{ delegates: any[] }>('/api/delegates');
   },
 };
 

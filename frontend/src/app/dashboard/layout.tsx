@@ -169,19 +169,21 @@ function Sidebar({ isOpen, onClose }: SidebarProps) {
           </Link>
         )}
 
-        {/* Settings (Currently no settings page exists, but kept for future expansion) */}
-        <Link
-          href="/dashboard/settings"
-          onClick={onClose}
-          className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-            pathname === '/dashboard/settings'
-              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400'
-              : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white'
-          }`}
-        >
-          <SettingsIcon className="h-5 w-5" />
-          Settings
-        </Link>
+        {/* Settings */}
+        {user?.role === 'patient' && (
+          <Link
+            href="/dashboard/settings"
+            onClick={onClose}
+            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+              pathname === '/dashboard/settings'
+                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400'
+                : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white'
+            }`}
+          >
+            <SettingsIcon className="h-5 w-5" />
+            Settings
+          </Link>
+        )}
       </nav>
 
       {/* User info + Logout */}
