@@ -2,6 +2,7 @@
 
 export interface User {
   id: string;
+  uniqueId?: string;
   email: string;
   fullName: string;
   role: 'patient' | 'doctor' | 'admin';

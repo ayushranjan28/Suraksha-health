@@ -228,9 +228,14 @@ function Sidebar({ isOpen, onClose }: SidebarProps) {
             <p className="truncate text-sm font-medium text-zinc-900 dark:text-white">
               {user?.fullName || 'User'}
             </p>
+            {user?.uniqueId && (
+              <p className="truncate text-xs font-mono text-zinc-500 dark:text-zinc-400 mt-0.5">
+                {user.uniqueId}
+              </p>
+            )}
             {user?.role && (
               <span
-                className={`mt-0.5 inline-block rounded px-1.5 py-0.5 text-xs font-medium capitalize ${
+                className={`mt-1 inline-block rounded px-1.5 py-0.5 text-xs font-medium capitalize ${
                   roleBadgeColors[user.role] || roleBadgeColors.patient
                 }`}
               >
@@ -334,7 +339,7 @@ function ListIcon({ className }: { className?: string }) {
   );
 }
 
-function ShieldCheckIcon({ className }: { className?: string }) {
+function ShieldIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
