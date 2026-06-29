@@ -18,12 +18,25 @@ const { supabase } = require('../config/db');
  */
 
 /** Columns returned for public-facing queries (no password_hash) */
-const PUBLIC_COLUMNS = 'id, email, full_name, role, abha_id, google_id, avatar_url, auth_provider, email_verified, created_at, updated_at, is_active';
+const PUBLIC_COLUMNS = 'id, unique_id, email, full_name, role, abha_id, google_id, avatar_url, auth_provider, email_verified, created_at, updated_at, is_active';
 
 /** Columns returned when password_hash is needed (login) */
 const ALL_COLUMNS = '*, password_hash';
 
 class User {
+  /**
+   * Helper to generate a unique human-readable ID
+   */
+  static generateUniqueId(role) {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < 8; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    const prefix = role === 'doctor' ? 'DOC' : role === 'admin' ? 'ADM' : 'PAT';
+    return `${prefix}-${result}`;
+  }
+
   // ────────────────────────────────────────────────────────
   // CREATE
   // ────────────────────────────────────────────────────────
@@ -40,9 +53,12 @@ class User {
    * @throws {Error} If email already exists (unique constraint) or other DB error
    */
   static async create({ email, passwordHash, fullName, role = 'patient' }) {
+    const unique_id = User.generateUniqueId(role);
+
     const { data, error } = await supabase
       .from('users')
       .insert({
+        unique_id,
         email,
         password_hash: passwordHash,
         full_name: fullName,
@@ -152,9 +168,12 @@ class User {
    * @throws {Error} On DB error
    */
   static async createGoogleUser({ email, fullName, googleId, avatarUrl }) {
+    const unique_id = User.generateUniqueId('patient');
+
     const { data, error } = await supabase
       .from('users')
       .insert({
+        unique_id,
         email,
         password_hash: null,
         full_name:     fullName,
