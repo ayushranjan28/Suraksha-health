@@ -1,6 +1,8 @@
 const EmergencyRequest = require('../models/EmergencyRequest');
 const User = require('../models/User');
 const Delegate = require('../models/Delegate');
+const AuditLog = require('../models/AuditLog');
+const { getDistanceInMeters } = require('../utils/geo');
 
 exports.createRequest = async (req, res, next) => {
   try {
@@ -102,6 +104,68 @@ exports.updateRequestStatus = async (req, res, next) => {
     const updatedRequest = await EmergencyRequest.updateStatus(id, status, expiresAt);
 
     res.json({ message: `Emergency request ${status}`, request: updatedRequest });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.overrideRequest = async (req, res, next) => {
+  try {
+    const { patientId, reason, lat, lng } = req.body;
+    const doctorId = req.user.userId;
+
+    if (req.user.role !== 'doctor') {
+      return res.status(403).json({ error: 'Only doctors can use emergency override' });
+    }
+
+    if (!lat || !lng) {
+      return res.status(400).json({ error: 'Location coordinates required for override' });
+    }
+
+    const patient = await User.findById(patientId);
+    if (!patient || patient.role !== 'patient') {
+      return res.status(404).json({ error: 'Patient not found' });
+    }
+
+    const hospitalLat = parseFloat(process.env.HOSPITAL_LAT || 0);
+    const hospitalLng = parseFloat(process.env.HOSPITAL_LNG || 0);
+    const maxRadius = parseFloat(process.env.ALLOWED_RADIUS_METERS || 500);
+
+    const distance = getDistanceInMeters(lat, lng, hospitalLat, hospitalLng);
+
+    if (distance > maxRadius) {
+      await AuditLog.create({
+        userId: doctorId,
+        action: 'FAILED_OVERRIDE_ATTEMPT',
+        metadata: { patientId, reason, lat, lng, distance, error: 'Outside hospital zone' }
+      });
+      return res.status(403).json({ error: `You are too far from the registered hospital zone (Distance: ${Math.round(distance)}m). Override denied.` });
+    }
+
+    const expiry = new Date();
+    expiry.setHours(expiry.getHours() + 2);
+    
+    const { data: request, error } = await require('../config/db').supabase
+      .from('emergency_requests')
+      .insert({
+        patient_id: patientId,
+        doctor_id: doctorId,
+        reason,
+        status: 'approved',
+        expires_at: expiry.toISOString()
+      })
+      .select('*')
+      .single();
+
+    if (error) throw new Error(error.message);
+
+    await AuditLog.create({
+      userId: doctorId,
+      action: 'LIFE_THREATENING_OVERRIDE',
+      metadata: { patientId, reason, lat, lng, distance, requestId: request.id }
+    });
+
+    res.status(201).json({ message: 'Emergency override granted for 2 hours', request });
   } catch (error) {
     next(error);
   }

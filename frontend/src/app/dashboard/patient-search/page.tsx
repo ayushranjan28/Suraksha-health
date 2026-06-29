@@ -8,6 +8,7 @@ export default function PatientSearchPage() {
   const [patientId, setPatientId] = useState('');
   const [patientName, setPatientName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [overriding, setOverriding] = useState(false);
   const [error, setError] = useState('');
 
   const [profile, setProfile] = useState<PatientProfileData | null>(null);
@@ -90,6 +91,57 @@ export default function PatientSearchPage() {
     }
   };
 
+  const handleOverride = async () => {
+    if (!patientId) {
+      setError('Please enter a Patient UUID first to initiate an override.');
+      return;
+    }
+
+    if (!confirm('WARNING: You are about to initiate a Life-Threatening Emergency Override. This action will be permanently audited and your location will be verified. Proceed?')) {
+      return;
+    }
+
+    setOverriding(true);
+    setError('');
+
+    if (!navigator.geolocation) {
+      setError('Geolocation is not supported by your browser.');
+      setOverriding(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          
+          await api.emergency.override(patientId, 'Life-Threatening Emergency', lat, lng);
+          
+          // Force a reload of data now that we have access
+          setError('Override granted. You have 2 hours of access. Loading records...');
+          const recordsData = await recordsApi.getRecords(patientId, patientName);
+          setRecords(recordsData.records);
+          
+          try {
+            const profileData = await profileApi.getPatientProfileByDoctor(patientId, patientName);
+            if (profileData.profile) setProfile(profileData.profile);
+          } catch (e) {
+            // ignore if profile fails
+          }
+        } catch (err: any) {
+          setError(err.message || 'Override failed.');
+        } finally {
+          setOverriding(false);
+        }
+      },
+      (geoErr) => {
+        setError('Location access denied. Geo-fenced override requires your location.');
+        setOverriding(false);
+      }
+    );
+  };
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold text-zinc-900 dark:text-white">Patient Search & Verify</h1>
@@ -118,10 +170,23 @@ export default function PatientSearchPage() {
               className="w-full border p-2 rounded dark:bg-zinc-800 dark:border-zinc-700"
             />
           </div>
-          <button type="submit" disabled={loading} className="bg-emerald-600 text-white px-6 py-2 rounded font-medium disabled:opacity-50 h-10">
+          <button type="submit" disabled={loading || overriding} className="bg-emerald-600 text-white px-6 py-2 rounded font-medium disabled:opacity-50 h-10">
             {loading ? 'Searching...' : 'Search & Verify'}
           </button>
         </form>
+        
+        <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-800 text-right">
+          <button
+            onClick={handleOverride}
+            disabled={loading || overriding}
+            className="text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 dark:text-red-400 px-4 py-2 rounded text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {overriding ? 'Verifying Location...' : '🚨 Life-Threatening Override'}
+          </button>
+          <p className="text-xs text-zinc-500 mt-2">
+            Bypass approval using GPS Geo-Fencing. Subject to strict auditing.
+          </p>
+        </div>
       </div>
 
       {profile && (
