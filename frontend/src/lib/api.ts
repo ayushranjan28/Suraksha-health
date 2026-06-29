@@ -313,10 +313,10 @@ export const emergency = {
 };
 
 export const delegates = {
-  async add(email: string): Promise<{ message: string; delegate: any }> {
+  async add(email: string, contactNumber: string): Promise<{ message: string; delegate: any }> {
     return apiCall<{ message: string; delegate: any }>('/api/delegates', {
       method: 'POST',
-      body: { email },
+      body: { email, contactNumber },
     });
   },
 
@@ -329,6 +329,12 @@ export const delegates = {
   async get(): Promise<{ delegates: any[] }> {
     return apiCall<{ delegates: any[] }>('/api/delegates');
   },
+};
+
+export const auditLogs = {
+  async get(): Promise<{ logs: any[] }> {
+    return apiCall<{ logs: any[] }>('/api/audit-logs');
+  }
 };
 
 // ── Patient Profile API Functions ─────────────────────────────────────────────

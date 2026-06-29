@@ -1,6 +1,7 @@
 const Record = require('../models/Record');
 const EmergencyRequest = require('../models/EmergencyRequest');
 const User = require('../models/User');
+const AuditLog = require('../models/AuditLog');
 
 exports.createRecord = async (req, res, next) => {
   try {
@@ -60,6 +61,13 @@ exports.getRecords = async (req, res, next) => {
           return res.status(403).json({ error: 'No active emergency access to this patient and cross-verification failed' });
         }
         records = await Record.findByPatient(patientId);
+        
+        // Log this access
+        await AuditLog.create({
+          userId,
+          action: 'RECORD_VIEWED',
+          metadata: { patientId }
+        });
       } else {
         return res.status(400).json({ error: 'patientId query parameter is required for doctors to view records' });
       }
@@ -103,6 +111,13 @@ exports.getRecordById = async (req, res, next) => {
       if (!hasAccess) {
         return res.status(403).json({ error: 'Access denied. No active emergency access and cross-verification failed.' });
       }
+
+      // Log this access
+      await AuditLog.create({
+        userId,
+        action: 'RECORD_VIEWED',
+        metadata: { patientId: record.patient_id, recordId: record.id }
+      });
     }
 
     res.json({ record });

@@ -8,6 +8,7 @@ export default function SettingsPage() {
   const { user } = useAuth();
   const [delegateList, setDelegateList] = useState<any[]>([]);
   const [email, setEmail] = useState('');
+  const [contactNumber, setContactNumber] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -38,9 +39,10 @@ export default function SettingsPage() {
     try {
       setError('');
       setSuccess('');
-      await delegates.add(email);
+      await delegates.add(email, contactNumber);
       setSuccess('Delegate added successfully!');
       setEmail('');
+      setContactNumber('');
       fetchDelegates();
     } catch (err: any) {
       setError(err.message || 'Failed to add delegate');
@@ -76,7 +78,7 @@ export default function SettingsPage() {
           Add a trusted family member or guardian. They will be able to approve emergency break-glass requests on your behalf if you are unable to.
         </p>
 
-        <form onSubmit={handleAddDelegate} className="flex gap-4 mb-8">
+        <form onSubmit={handleAddDelegate} className="flex flex-col gap-4 mb-8 sm:flex-row">
           <input
             type="email"
             required
@@ -85,7 +87,15 @@ export default function SettingsPage() {
             onChange={(e) => setEmail(e.target.value)}
             className="flex-1 border p-2 rounded dark:bg-zinc-800 dark:border-zinc-700"
           />
-          <button type="submit" className="bg-emerald-600 text-white px-4 py-2 rounded font-medium hover:bg-emerald-700">
+          <input
+            type="tel"
+            required
+            placeholder="Emergency contact number"
+            value={contactNumber}
+            onChange={(e) => setContactNumber(e.target.value)}
+            className="flex-1 border p-2 rounded dark:bg-zinc-800 dark:border-zinc-700"
+          />
+          <button type="submit" className="bg-emerald-600 text-white px-4 py-2 rounded font-medium hover:bg-emerald-700 whitespace-nowrap">
             Add Delegate
           </button>
         </form>
@@ -99,9 +109,17 @@ export default function SettingsPage() {
           <ul className="space-y-3">
             {delegateList.map((item) => (
               <li key={item.id} className="flex items-center justify-between p-3 border rounded dark:border-zinc-700">
-                <div>
-                  <p className="font-medium">{item.delegate?.full_name}</p>
-                  <p className="text-sm text-zinc-500">{item.delegate?.email}</p>
+                <div className="flex gap-4 items-center">
+                  <div>
+                    <p className="font-medium">{item.delegate?.full_name}</p>
+                    <p className="text-sm text-zinc-500">{item.delegate?.email}</p>
+                  </div>
+                  {item.contact_number && (
+                    <div className="ml-4 pl-4 border-l border-zinc-200 dark:border-zinc-700">
+                      <p className="text-xs text-zinc-500">Emergency Contact</p>
+                      <p className="text-sm font-medium">{item.contact_number}</p>
+                    </div>
+                  )}
                 </div>
                 <button
                   onClick={() => handleRemoveDelegate(item.id)}
