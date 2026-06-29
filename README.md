@@ -111,6 +111,11 @@ JWT_REFRESH_EXPIRY=7d
 # CORS
 CORS_ORIGIN=http://localhost:3000
 
+# IPFS Storage (Pinata)
+PINATA_API_KEY=your-pinata-api-key
+PINATA_API_SECRET=your-pinata-api-secret
+PINATA_JWT=your-pinata-jwt
+
 # Google OAuth
 GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 
