@@ -42,6 +42,8 @@ exports.getRequests = async (req, res, next) => {
       }
     } else if (role === 'doctor') {
       requests = await EmergencyRequest.findByDoctor(userId);
+    } else if (role === 'admin') {
+      requests = await EmergencyRequest.findAll();
     }
 
     res.json({ requests });
@@ -65,9 +67,11 @@ exports.updateRequestStatus = async (req, res, next) => {
       return res.status(404).json({ error: 'Emergency request not found' });
     }
 
-    // Patient or Delegate can approve/reject/revoke
+    // Patient, Delegate, or Admin can approve/reject/revoke
     let isAuthorized = false;
-    if (role === 'patient') {
+    if (role === 'admin') {
+      isAuthorized = true;
+    } else if (role === 'patient') {
       if (request.patient_id === userId) {
         isAuthorized = true;
       } else {
@@ -102,6 +106,14 @@ exports.updateRequestStatus = async (req, res, next) => {
     }
 
     const updatedRequest = await EmergencyRequest.updateStatus(id, status, expiresAt);
+
+    if (status === 'approved' && role === 'admin') {
+      await AuditLog.create({
+        userId,
+        action: 'ADMIN_OVERRIDE_APPROVAL',
+        metadata: { patientId: request.patient_id, requestId: id }
+      });
+    }
 
     res.json({ message: `Emergency request ${status}`, request: updatedRequest });
   } catch (error) {
