@@ -11,6 +11,7 @@ import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/lib/api';
 import { ErrorBanner } from '@/components/ui/ErrorBanner';
 import { LoadingBar } from '@/components/ui/LoadingBar';
+import GoogleLoginButton from '@/components/auth/GoogleLoginButton';
 
 // ── Validation Schema ────────────────────────────────────────────────────────
 
@@ -61,6 +62,7 @@ function LoginForm() {
   const [serverError, setServerError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
 
   const {
     register,
@@ -87,6 +89,7 @@ function LoginForm() {
 
   async function onSubmit(data: LoginFormData) {
     setServerError(null);
+    setUnverifiedEmail(null);
     setIsSubmitting(true);
 
     try {
@@ -102,7 +105,9 @@ function LoginForm() {
       router.push(redirect || '/dashboard');
     } catch (error) {
       if (error instanceof ApiError) {
-        if (error.status === 429) {
+        if (error.code === 'EMAIL_NOT_VERIFIED') {
+          setUnverifiedEmail(data.email);
+        } else if (error.status === 429) {
           setServerError('Too many attempts. Try again in 15 minutes.');
         } else if (error.status === 401) {
           setServerError('Invalid email or password');
@@ -123,6 +128,30 @@ function LoginForm() {
       
       {serverError && (
         <ErrorBanner message={serverError} onDismiss={() => setServerError(null)} />
+      )}
+
+      {unverifiedEmail && (
+        <div className="mb-4 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+          <div className="flex items-start gap-3">
+            <svg className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+            <div>
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                Your email isn&apos;t verified yet.
+              </p>
+              <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                Check your inbox or{' '}
+                <Link
+                  href={`/check-email?email=${encodeURIComponent(unverifiedEmail)}`}
+                  className="font-semibold underline hover:text-amber-900 dark:hover:text-amber-100"
+                >
+                  resend the verification email
+                </Link>
+              </p>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="bg-white dark:bg-gray-800 rounded-none sm:rounded-2xl shadow-none sm:shadow-xl p-6 sm:p-8 w-full max-w-md mx-auto">
@@ -267,6 +296,21 @@ function LoginForm() {
             )}
           </button>
         </form>
+
+        {/* Google OAuth Divider */}
+        <div className="relative my-5">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-200 dark:border-gray-700" />
+          </div>
+          <div className="relative flex justify-center text-xs">
+            <span className="px-2 bg-white dark:bg-gray-800 text-gray-500">
+              or continue with
+            </span>
+          </div>
+        </div>
+
+        {/* Google Login Button */}
+        <GoogleLoginButton />
 
         {/* Divider */}
         <div className="relative my-6">

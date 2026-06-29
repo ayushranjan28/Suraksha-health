@@ -4,7 +4,7 @@ const { Router } = require('express');
 
 const authController              = require('../controllers/authController');
 const { authenticateToken }       = require('../middleware/authMiddleware');
-const { loginLimiter, registerLimiter, forgotPasswordLimiter } = require('../middleware/rateLimiter');
+const { loginLimiter, registerLimiter, forgotPasswordLimiter, resendVerificationLimiter } = require('../middleware/rateLimiter');
 
 const router = Router();
 
@@ -49,6 +49,22 @@ router.get(
   authController.getMe,
 );
 
+// ── GET /api/auth/verify-email ────────────────────────────────────────────────
+// Verifies a user's email via the token sent in the verification email
+router.get(
+  '/verify-email',
+  authController.verifyEmail,
+);
+
+// ── POST /api/auth/resend-verification ────────────────────────────────────────
+// Resends the verification email (rate-limited: 3/hr per IP)
+router.post(
+  '/resend-verification',
+  resendVerificationLimiter,
+  authController.authValidation.resendVerification,
+  authController.resendVerification,
+);
+
 // ── POST /api/auth/forgot-password ────────────────────────────────────────────
 // Rate-limited (3/hr per IP) to prevent abuse
 router.post(
@@ -64,6 +80,13 @@ router.post(
   '/reset-password',
   authController.authValidation.resetPassword,
   authController.resetPassword,
+);
+// ── POST /api/auth/google ─────────────────────────────────────────────────────
+// Google OAuth — no rate limiter (Google handles abuse), no express-validator
+// (the ID token is opaque and verified server-side by google-auth-library)
+router.post(
+  '/google',
+  authController.googleAuth,
 );
 
 module.exports = router;

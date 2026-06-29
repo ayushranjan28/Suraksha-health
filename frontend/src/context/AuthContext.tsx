@@ -11,7 +11,7 @@ import {
 } from 'react';
 
 import type { User, LoginPayload, RegisterPayload } from '@/types/auth';
-import { auth, getStoredToken, clearStoredToken, ApiError } from '@/lib/api';
+import { auth, getStoredToken, setStoredToken, clearStoredToken, ApiError } from '@/lib/api';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -24,9 +24,11 @@ interface AuthState {
 
 interface AuthContextValue extends AuthState {
   login: (email: string, password: string) => Promise<void>;
-  register: (data: RegisterPayload) => Promise<void>;
+  register: (data: RegisterPayload) => Promise<{ email: string }>;
+  googleLogin: (idToken: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  setUserFromVerification: (user: User, accessToken: string) => void;
 }
 
 // ── Context ──────────────────────────────────────────────────────────────────
@@ -104,12 +106,30 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   // ── Register ───────────────────────────────────────────────────────────────
+  // Register no longer auto-logs in. Returns email so the page can redirect
+  // to /check-email with the email as a query param.
 
-  const register = useCallback(async (data: RegisterPayload) => {
+  const register = useCallback(async (data: RegisterPayload): Promise<{ email: string }> => {
     const response = await auth.register(data);
+    return { email: response.email };
+  }, []);
+
+  // ── Google Login ────────────────────────────────────────────────────────────
+
+  const googleLogin = useCallback(async (idToken: string) => {
+    const response = await auth.googleLogin(idToken);
 
     setUser(response.user);
     setAccessToken(response.accessToken);
+  }, []);
+
+  // ── Set user from email verification ────────────────────────────────────────
+  // Called by the verify-email page after successful verification
+
+  const setUserFromVerification = useCallback((verifiedUser: User, token: string) => {
+    setUser(verifiedUser);
+    setAccessToken(token);
+    setStoredToken(token);
   }, []);
 
   // ── Logout ─────────────────────────────────────────────────────────────────
@@ -161,10 +181,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       isAuthenticated,
       login,
       register,
+      googleLogin,
       logout,
       refreshUser,
+      setUserFromVerification,
     }),
-    [user, accessToken, isLoading, isAuthenticated, login, register, logout, refreshUser]
+    [user, accessToken, isLoading, isAuthenticated, login, register, googleLogin, logout, refreshUser, setUserFromVerification]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

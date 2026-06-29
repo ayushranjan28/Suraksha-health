@@ -12,6 +12,7 @@ import { ApiError } from '@/lib/api';
 import { ErrorBanner } from '@/components/ui/ErrorBanner';
 import { LoadingBar } from '@/components/ui/LoadingBar';
 import { PasswordStrengthMeter } from '@/components/ui/PasswordStrengthMeter';
+import GoogleLoginButton from '@/components/auth/GoogleLoginButton';
 
 // ── Validation Schema ────────────────────────────────────────────────────────
 
@@ -32,7 +33,9 @@ const registerSchema = z
       .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
       .regex(/[0-9]/, 'Password must contain at least one number'),
     confirmPassword: z.string().min(1, 'Please confirm your password'),
-    role: z.enum(['patient', 'doctor']),
+    role: z.enum(['patient', 'doctor'], {
+      message: 'Please select a role',
+    }),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: 'Passwords do not match',
@@ -75,14 +78,15 @@ export default function RegisterPage() {
     setIsSubmitting(true);
 
     try {
-      await registerUser({
+      const { email } = await registerUser({
         fullName: data.fullName,
         email: data.email,
         password: data.password,
         role: data.role,
       });
 
-      router.push('/dashboard');
+      // Redirect to check-email page (user must verify before logging in)
+      router.push(`/check-email?email=${encodeURIComponent(email)}`);
     } catch (error) {
       if (error instanceof ApiError) {
         if (error.errors && error.errors.length > 0) {
@@ -338,6 +342,21 @@ export default function RegisterPage() {
             )}
           </button>
         </form>
+
+        {/* Google OAuth Divider */}
+        <div className="relative my-5">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-200 dark:border-gray-700" />
+          </div>
+          <div className="relative flex justify-center text-xs">
+            <span className="px-2 bg-white dark:bg-gray-800 text-gray-500">
+              or continue with
+            </span>
+          </div>
+        </div>
+
+        {/* Google Login Button */}
+        <GoogleLoginButton />
 
         {/* Sign In Link */}
         <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
