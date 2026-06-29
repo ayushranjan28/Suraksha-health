@@ -142,6 +142,7 @@ async function issueTokensAndSetCookie(userId, role, res) {
 function publicUser(user) {
   return {
     id:           user.id,
+    uniqueId:     user.unique_id,
     email:        user.email,
     fullName:     user.full_name,
     role:         user.role,

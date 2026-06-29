@@ -228,9 +228,14 @@ function Sidebar({ isOpen, onClose }: SidebarProps) {
             <p className="truncate text-sm font-medium text-zinc-900 dark:text-white">
               {user?.fullName || 'User'}
             </p>
+            {user?.uniqueId && (
+              <p className="truncate text-xs font-mono text-zinc-500 dark:text-zinc-400 mt-0.5">
+                {user.uniqueId}
+              </p>
+            )}
             {user?.role && (
               <span
-                className={`mt-0.5 inline-block rounded px-1.5 py-0.5 text-xs font-medium capitalize ${
+                className={`mt-1 inline-block rounded px-1.5 py-0.5 text-xs font-medium capitalize ${
                   roleBadgeColors[user.role] || roleBadgeColors.patient
                 }`}
               >

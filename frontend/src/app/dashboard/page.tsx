@@ -31,7 +31,15 @@ export default function DashboardPage() {
               </span>
             )}
           </div>
-          <p className="mt-1 text-sm text-zinc-500">
+          <p className="mt-1 flex items-center gap-2 text-sm text-zinc-500">
+            {user?.uniqueId && (
+              <>
+                <span className="font-mono bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-700 dark:text-zinc-300">
+                  {user.uniqueId}
+                </span>
+                <span className="text-zinc-300 dark:text-zinc-700">•</span>
+              </>
+            )}
             Here&apos;s an overview of your health vault
           </p>
         </div>
