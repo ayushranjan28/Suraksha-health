@@ -105,6 +105,20 @@ class EmergencyRequest {
     if (error) throw new Error(`EmergencyRequest.hasActiveAccess failed: ${error.message}`);
     return data && data.length > 0;
   }
+
+  static async findAll() {
+    const { data, error } = await supabase
+      .from('emergency_requests')
+      .select(`
+        *,
+        patient:users!patient_id(id, full_name, email),
+        doctor:users!doctor_id(id, full_name, email)
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) throw new Error(`EmergencyRequest.findAll failed: ${error.message}`);
+    return data;
+  }
 }
 
 module.exports = EmergencyRequest;
