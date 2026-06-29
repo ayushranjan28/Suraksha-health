@@ -122,12 +122,10 @@ PINATA_JWT=your-pinata-jwt
 # Google OAuth
 GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 
-# Email (Nodemailer SMTP)
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
-SMTP_PASS=your-app-password
-EMAIL_FROM='"Suraksha Health" <your-email@gmail.com>'
+# Email (Gmail SMTP)
+GMAIL_USER=your-email@gmail.com
+GMAIL_APP_PASSWORD=your-app-password
+EMAIL_FROM_NAME=Suraksha Health
 FRONTEND_URL=http://localhost:3000
 ```
 
