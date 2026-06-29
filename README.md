@@ -13,9 +13,12 @@ A full-stack application for securely managing medical records with emergency br
 - **🆔 Unique User IDs** — Automated human-readable unique IDs for all users
 - **🏥 Health Records** — Encrypted health record CRUD
 - **🚨 Emergency Access** — Break-glass procedures for emergencies
+- **⏱️ Time-Bound Consent** — Granular time-based access control for medical emergencies
+- **👨‍👩‍👧 Family Delegation** — Guardian linking for proxy emergency approvals
 - **📱 Responsive UI** — Mobile-first design with Tailwind CSS
 - **🛡️ Security First** — Rate limiting, password hashing (bcrypt), audit logging
 - **⛓️ Web3 Vault** — Smart contract layer for on-chain health record storage
+- **🔗 IPFS Storage** — Decentralized file storage for medical scans (via Pinata)
 
 ### 🚧 Coming Soon
 - **📊 Dashboard** — Patient/Doctor dashboards with analytics

@@ -221,3 +221,26 @@ ALTER TABLE public.health_records
 ADD COLUMN file_urls JSONB DEFAULT '[]'::jsonb,
 ADD COLUMN previous_doctor_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
 ADD COLUMN previous_doctor_name TEXT;
+
+-- User Delegates for Family/Guardian emergency approval
+CREATE TABLE public.user_delegates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  patient_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  delegate_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(patient_id, delegate_id)
+);
+
+ALTER TABLE public.user_delegates ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "user_delegates_select"
+  ON public.user_delegates FOR SELECT
+  USING (auth.uid() = patient_id OR auth.uid() = delegate_id);
+
+CREATE POLICY "user_delegates_insert"
+  ON public.user_delegates FOR INSERT
+  WITH CHECK (auth.uid() = patient_id);
+
+CREATE POLICY "user_delegates_delete"
+  ON public.user_delegates FOR DELETE
+  USING (auth.uid() = patient_id);
