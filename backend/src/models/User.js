@@ -167,8 +167,8 @@ class User {
    * @returns {Promise<Omit<UserRow, 'password_hash'>>} Created user (no password_hash)
    * @throws {Error} On DB error
    */
-  static async createGoogleUser({ email, fullName, googleId, avatarUrl }) {
-    const unique_id = User.generateUniqueId('patient');
+  static async createGoogleUser({ email, fullName, googleId, avatarUrl, role = 'patient' }) {
+    const unique_id = User.generateUniqueId(role);
 
     const { data, error } = await supabase
       .from('users')
@@ -177,7 +177,7 @@ class User {
         email,
         password_hash: null,
         full_name:     fullName,
-        role:          'patient',
+        role,
         google_id:     googleId,
         avatar_url:    avatarUrl,
         auth_provider: 'google',

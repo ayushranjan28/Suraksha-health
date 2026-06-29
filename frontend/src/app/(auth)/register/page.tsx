@@ -72,6 +72,7 @@ export default function RegisterPage() {
   });
 
   const watchPassword = watch('password', '');
+  const watchRole = watch('role', 'patient');
 
   async function onSubmit(data: RegisterFormData) {
     setServerError(null);
@@ -356,7 +357,7 @@ export default function RegisterPage() {
         </div>
 
         {/* Google Login Button */}
-        <GoogleLoginButton />
+        <GoogleLoginButton role={watchRole} />
 
         {/* Sign In Link */}
         <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">

@@ -25,7 +25,7 @@ interface AuthState {
 interface AuthContextValue extends AuthState {
   login: (email: string, password: string) => Promise<void>;
   register: (data: RegisterPayload) => Promise<{ email: string }>;
-  googleLogin: (idToken: string) => Promise<void>;
+  googleLogin: (idToken: string, role?: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   setUserFromVerification: (user: User, accessToken: string) => void;
@@ -116,8 +116,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // ── Google Login ────────────────────────────────────────────────────────────
 
-  const googleLogin = useCallback(async (idToken: string) => {
-    const response = await auth.googleLogin(idToken);
+  const googleLogin = useCallback(async (idToken: string, role?: string) => {
+    const response = await auth.googleLogin(idToken, role);
 
     setUser(response.user);
     setAccessToken(response.accessToken);

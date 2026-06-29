@@ -563,10 +563,16 @@ async function resetPassword(req, res, next) {
  */
 async function googleAuth(req, res, next) {
   try {
-    const { idToken } = req.body;
+    const { idToken, role } = req.body;
 
     if (!idToken) {
       const err = new Error('Google ID token is required.');
+      err.status = 400;
+      throw err;
+    }
+
+    if (role && !['patient', 'doctor', 'admin'].includes(role)) {
+      const err = new Error("Role must be 'patient', 'doctor', or 'admin'.");
       err.status = 400;
       throw err;
     }
@@ -603,7 +609,7 @@ async function googleAuth(req, res, next) {
         user = existingByEmail;
       } else {
         // 4. Create new Google user
-        user = await User.createGoogleUser({ email, fullName, googleId, avatarUrl });
+        user = await User.createGoogleUser({ email, fullName, googleId, avatarUrl, role: role || 'patient' });
       }
     }
 

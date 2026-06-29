@@ -225,10 +225,10 @@ export const auth = {
    * Log in with a Google OAuth ID token.
    * POST /api/auth/google
    */
-  async googleLogin(idToken: string): Promise<AuthResponse> {
+  async googleLogin(idToken: string, role?: string): Promise<AuthResponse> {
     const response = await apiCall<AuthResponse>('/api/auth/google', {
       method: 'POST',
-      body: { idToken },
+      body: { idToken, role },
       skipAuth: true,
     });
 
