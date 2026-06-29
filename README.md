@@ -10,13 +10,14 @@ A full-stack application for securely managing medical records with emergency br
 - **📧 Email Verification** — New users must verify their email before accessing the app
 - **🔁 Password Reset** — Email-based password recovery via Nodemailer (SMTP)
 - **👤 Role-Based Access** — Patient, Doctor, and Admin roles with granular permissions
+- **🆔 Unique User IDs** — Automated human-readable unique IDs for all users
+- **🏥 Health Records** — Encrypted health record CRUD
+- **🚨 Emergency Access** — Break-glass procedures for emergencies
 - **📱 Responsive UI** — Mobile-first design with Tailwind CSS
 - **🛡️ Security First** — Rate limiting, password hashing (bcrypt), audit logging
 - **⛓️ Web3 Vault** — Smart contract layer for on-chain health record storage
 
 ### 🚧 Coming Soon
-- **🏥 Health Records** — Encrypted health record CRUD
-- **🚨 Emergency Access** — Break-glass procedures for emergencies
 - **📊 Dashboard** — Patient/Doctor dashboards with analytics
 
 ## 🛠️ Tech Stack
@@ -226,7 +227,8 @@ See **[API_CONTRACT.md](./API_CONTRACT.md)** for complete API documentation incl
 | Developer | Responsibility | Status |
 |-----------|---------------|--------|
 | **Dev 1** | Auth system (JWT + Google OAuth), email verification, password reset, database setup, login/register UI | ✅ Complete |
-| **Dev 2** | Records management, emergency access features, dashboards | 🚧 Starting |
+| **Dev 2** | Records management, emergency access features | ✅ Complete |
+| **Dev 2** | Dashboards with analytics | 🚧 Starting |
 
 ### For Dev 2: Getting Started
 
