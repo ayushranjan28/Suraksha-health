@@ -12,25 +12,33 @@ export function LoadingBar({ isLoading }: LoadingBarProps) {
 
   useEffect(() => {
     if (isLoading) {
-      setVisible(true);
-      setProgress(0);
+      const initTimer = setTimeout(() => {
+        setVisible(true);
+        setProgress(0);
+      }, 0);
 
       const timer1 = setTimeout(() => setProgress(30), 100);
       const timer2 = setTimeout(() => setProgress(60), 500);
       const timer3 = setTimeout(() => setProgress(80), 1000);
 
       return () => {
+        clearTimeout(initTimer);
         clearTimeout(timer1);
         clearTimeout(timer2);
         clearTimeout(timer3);
       };
     } else if (visible) {
-      setProgress(100);
+      const initTimer2 = setTimeout(() => {
+        setProgress(100);
+      }, 0);
       const timer = setTimeout(() => {
         setVisible(false);
         setProgress(0);
       }, 300);
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(initTimer2);
+        clearTimeout(timer);
+      };
     }
   }, [isLoading, visible]);
 

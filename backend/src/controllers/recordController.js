@@ -4,7 +4,7 @@ const User = require('../models/User');
 
 exports.createRecord = async (req, res, next) => {
   try {
-    const { patientId, title, content } = req.body;
+    const { patientId, title, content, fileUrls, previousDoctorId, previousDoctorName } = req.body;
     const doctorId = req.user.userId;
 
     // Verify patient exists
@@ -17,7 +17,10 @@ exports.createRecord = async (req, res, next) => {
       patientId,
       doctorId,
       title,
-      content
+      content,
+      fileUrls,
+      previousDoctorId,
+      previousDoctorName
     });
 
     res.status(201).json({ message: 'Record created successfully', record });
@@ -37,11 +40,24 @@ exports.getRecords = async (req, res, next) => {
       // Doctor can only see records of patients they have active emergency access to
       // or records they have created themselves.
       // For simplicity, we fetch records for a specific patient if patientId is provided in query
-      const { patientId } = req.query;
+      const { patientId, patientName } = req.query;
       if (patientId) {
-        const hasAccess = await EmergencyRequest.hasActiveAccess(patientId, userId);
+        let hasAccess = false;
+
+        if (patientName) {
+          // Cross-verification: Doctor provided UUID and Name
+          const patient = await User.findById(patientId);
+          if (patient && patient.full_name.toLowerCase() === patientName.toLowerCase()) {
+            hasAccess = true;
+          }
+        }
+
         if (!hasAccess) {
-          return res.status(403).json({ error: 'No active emergency access to this patient' });
+          hasAccess = await EmergencyRequest.hasActiveAccess(patientId, userId);
+        }
+
+        if (!hasAccess) {
+          return res.status(403).json({ error: 'No active emergency access to this patient and cross-verification failed' });
         }
         records = await Record.findByPatient(patientId);
       } else {
@@ -70,9 +86,22 @@ exports.getRecordById = async (req, res, next) => {
     }
 
     if (role === 'doctor' && record.doctor_id !== userId) {
-      const hasAccess = await EmergencyRequest.hasActiveAccess(record.patient_id, userId);
+      let hasAccess = false;
+      const { patientName } = req.query;
+
+      if (patientName) {
+        const patient = await User.findById(record.patient_id);
+        if (patient && patient.full_name.toLowerCase() === patientName.toLowerCase()) {
+          hasAccess = true;
+        }
+      }
+
       if (!hasAccess) {
-        return res.status(403).json({ error: 'Access denied. No active emergency access.' });
+        hasAccess = await EmergencyRequest.hasActiveAccess(record.patient_id, userId);
+      }
+
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied. No active emergency access and cross-verification failed.' });
       }
     }
 
