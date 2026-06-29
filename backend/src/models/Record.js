@@ -8,15 +8,21 @@ class Record {
    * @param {string} params.doctorId
    * @param {string} params.title
    * @param {string} params.content
+   * @param {string[]} [params.fileUrls]
+   * @param {string} [params.previousDoctorId]
+   * @param {string} [params.previousDoctorName]
    */
-  static async create({ patientId, doctorId, title, content }) {
+  static async create({ patientId, doctorId, title, content, fileUrls = [], previousDoctorId = null, previousDoctorName = null }) {
     const { data, error } = await supabase
       .from('health_records')
       .insert({
         patient_id: patientId,
         doctor_id: doctorId,
         title,
-        content
+        content,
+        file_urls: fileUrls,
+        previous_doctor_id: previousDoctorId,
+        previous_doctor_name: previousDoctorName
       })
       .select(`
         *,

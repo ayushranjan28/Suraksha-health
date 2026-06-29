@@ -182,3 +182,41 @@ CREATE POLICY "emergency_requests_update"
 CREATE POLICY "emergency_requests_delete_blocked"
   ON public.emergency_requests FOR DELETE
   USING (false);
+
+-- Patient Profiles for emergency details
+CREATE TABLE public.patient_profiles (
+  user_id         UUID PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
+  blood_group     TEXT,
+  allergies       TEXT,
+  past_accidents  TEXT,
+  trauma          TEXT,
+  other_info      TEXT,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TRIGGER set_patient_profiles_updated_at
+  BEFORE UPDATE ON public.patient_profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION public.handle_updated_at();
+
+ALTER TABLE public.patient_profiles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "patient_profiles_select"
+  ON public.patient_profiles FOR SELECT
+  USING (true);
+
+CREATE POLICY "patient_profiles_insert"
+  ON public.patient_profiles FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "patient_profiles_update"
+  ON public.patient_profiles FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Alter health_records to support file urls, previous doctor info
+ALTER TABLE public.health_records
+ADD COLUMN file_urls JSONB DEFAULT '[]'::jsonb,
+ADD COLUMN previous_doctor_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+ADD COLUMN previous_doctor_name TEXT;

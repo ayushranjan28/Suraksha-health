@@ -63,10 +63,16 @@ export async function apiCall<T>(
 ): Promise<T> {
   const { body, skipAuth = false, headers: customHeaders, ...restOptions } = options;
 
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    ...customHeaders,
+  const headers: Record<string, string> = {
+    ...customHeaders as Record<string, string>,
   };
+
+  if (!(body instanceof FormData)) {
+    headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+  } else {
+    // Let browser set the Content-Type with boundary for FormData
+    delete headers['Content-Type'];
+  }
 
   // Add Authorization header if token exists and not skipped
   if (!skipAuth) {
@@ -83,7 +89,7 @@ export async function apiCall<T>(
   };
 
   if (body !== undefined) {
-    config.body = JSON.stringify(body);
+    config.body = body instanceof FormData ? body : JSON.stringify(body);
   }
 
   const url = `${API_BASE_URL}${endpoint}`;
@@ -110,11 +116,11 @@ export async function apiCall<T>(
 
     // Handle other non-ok responses
     if (!response.ok) {
-      const errorData = (await response.json().catch(() => ({}))) as ApiErrorResponse;
+      const errorData = (await response.json().catch(() => ({}))) as Record<string, unknown>;
       throw new ApiError(
-        errorData.message || `Request failed with status ${response.status}`,
+        (errorData.error as string) || (errorData.message as string) || `Request failed with status ${response.status}`,
         response.status,
-        errorData.errors
+        errorData.errors as Array<{ field: string; message: string }>
       );
     }
 
@@ -217,14 +223,17 @@ export const auth = {
 import type { HealthRecord, EmergencyRequest } from '@/types/records';
 
 export const records = {
-  async getRecords(patientId?: string): Promise<{ records: HealthRecord[] }> {
-    const query = patientId ? `?patientId=${patientId}` : '';
+  async getRecords(patientId?: string, patientName?: string): Promise<{ records: HealthRecord[] }> {
+    const params = new URLSearchParams();
+    if (patientId) params.append('patientId', patientId);
+    if (patientName) params.append('patientName', patientName);
+    const query = params.toString() ? `?${params.toString()}` : '';
     return apiCall<{ records: HealthRecord[] }>(`/api/records${query}`, {
       method: 'GET',
     });
   },
 
-  async createRecord(data: { patientId: string; title: string; content: string }): Promise<{ message: string; record: HealthRecord }> {
+  async createRecord(data: { patientId: string; title: string; content: string; fileUrls?: string[]; previousDoctorId?: string; previousDoctorName?: string }): Promise<{ message: string; record: HealthRecord }> {
     return apiCall<{ message: string; record: HealthRecord }>('/api/records', {
       method: 'POST',
       body: data,
@@ -256,4 +265,54 @@ export const emergency = {
   },
 };
 
-export default { apiCall, auth, records, emergency, ApiError };
+// ── Patient Profile API Functions ─────────────────────────────────────────────
+
+export interface PatientProfileData {
+  bloodGroup: string;
+  allergies: string;
+  pastAccidents: string;
+  trauma: string;
+  otherInfo: string;
+}
+
+export const patientProfile = {
+  async getProfile(): Promise<{ profile: PatientProfileData }> {
+    return apiCall<{ profile: PatientProfileData }>('/api/patient-profile', {
+      method: 'GET',
+    });
+  },
+
+  async updateProfile(data: PatientProfileData): Promise<{ message: string; profile: PatientProfileData }> {
+    return apiCall<{ message: string; profile: PatientProfileData }>('/api/patient-profile', {
+      method: 'POST',
+      body: data,
+    });
+  },
+
+  async getPatientProfileByDoctor(patientId: string, patientName: string): Promise<{ profile: PatientProfileData }> {
+    const params = new URLSearchParams({ patientName });
+    return apiCall<{ profile: PatientProfileData }>(`/api/patient-profile/${patientId}?${params.toString()}`, {
+      method: 'GET',
+    });
+  },
+};
+
+// --- Upload API ---
+export const upload = {
+  uploadFile: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    return apiCall<{ message: string; url: string }>('/upload', {
+      method: 'POST',
+      body: formData,
+      // Do not set Content-Type, let browser set it with boundary
+      headers: {
+        'Accept': 'application/json',
+      }
+    });
+  }
+};
+
+const api = { apiCall, auth, records, emergency, patientProfile, upload, ApiError };
+export default api;

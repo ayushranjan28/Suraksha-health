@@ -24,8 +24,8 @@ export default function EmergencyPage() {
       setError('');
       const data = await emergencyApi.getRequests();
       setRequests(data.requests);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch emergency requests');
+    } catch (err: unknown) {
+      setError((err as Error).message || 'Failed to fetch emergency requests');
     } finally {
       setLoading(false);
     }
@@ -39,8 +39,8 @@ export default function EmergencyPage() {
       setPatientId('');
       setReason('');
       fetchRequests();
-    } catch (err: any) {
-      setError(err.message || 'Failed to request emergency access');
+    } catch (err: unknown) {
+      setError((err as Error).message || 'Failed to request emergency access');
     }
   };
 
@@ -49,8 +49,8 @@ export default function EmergencyPage() {
       setError('');
       await emergencyApi.updateStatus(id, status);
       fetchRequests();
-    } catch (err: any) {
-      setError(err.message || 'Failed to update status');
+    } catch (err: unknown) {
+      setError((err as Error).message || 'Failed to update status');
     }
   };
 

@@ -16,7 +16,11 @@ export default function RecordsPage() {
   const [patientId, setPatientId] = useState(''); // for doctors
 
   useEffect(() => {
-    fetchRecords();
+    if (user?.role === 'patient') {
+      fetchRecords();
+    } else {
+      setLoading(false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
@@ -26,8 +30,8 @@ export default function RecordsPage() {
       setError('');
       const data = await recordsApi.getRecords(pid);
       setRecords(data.records);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch records');
+    } catch (err: unknown) {
+      setError((err as Error).message || 'Failed to fetch records');
     } finally {
       setLoading(false);
     }
@@ -42,8 +46,8 @@ export default function RecordsPage() {
       setNewContent('');
       setPatientId('');
       fetchRecords(patientId);
-    } catch (err: any) {
-      setError(err.message || 'Failed to create record');
+    } catch (err: unknown) {
+      setError((err as Error).message || 'Failed to create record');
     }
   };
 

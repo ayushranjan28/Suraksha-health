@@ -10,6 +10,8 @@ const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const authRoutes                      = require('./routes/auth');
 const recordsRoutes                   = require('./routes/records');
 const emergencyRoutes                 = require('./routes/emergency');
+const patientProfileRoutes            = require('./routes/patientProfile');
+const uploadRoutes                    = require('./routes/upload');
 
 const app = express();
 
@@ -41,6 +43,8 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/records', recordsRoutes);
 app.use('/api/emergency', emergencyRoutes);
+app.use('/api/patient-profile', patientProfileRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // ── 404 & global error handler (must be last) ────────────
 app.use(notFoundHandler);

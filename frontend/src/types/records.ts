@@ -10,6 +10,9 @@ export interface HealthRecord {
   updated_at: string;
   patient?: Pick<User, 'id' | 'fullName' | 'email'>;
   doctor?: Pick<User, 'id' | 'fullName' | 'email'>;
+  file_urls?: string[];
+  previous_doctor_id?: string;
+  previous_doctor_name?: string;
 }
 
 export interface EmergencyRequest {
