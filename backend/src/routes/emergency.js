@@ -14,4 +14,7 @@ router.get('/', emergencyController.getRequests);
 // Patients can update request status (approve/reject/revoke)
 router.patch('/:id/status', requireRole('patient'), emergencyController.updateRequestStatus);
 
+// Doctors can use emergency override (geo-fenced)
+router.post('/override', requireRole('doctor'), emergencyController.overrideRequest);
+
 module.exports = router;

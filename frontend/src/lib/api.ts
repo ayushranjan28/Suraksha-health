@@ -310,6 +310,13 @@ export const emergency = {
       body: { status, expiresInHours },
     });
   },
+
+  async override(patientId: string, reason: string, lat: number, lng: number): Promise<{ message: string; request: any }> {
+    return apiCall<{ message: string; request: any }>('/api/emergency/override', {
+      method: 'POST',
+      body: { patientId, reason, lat, lng },
+    });
+  },
 };
 
 export const delegates = {
