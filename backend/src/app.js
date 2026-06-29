@@ -13,6 +13,7 @@ const emergencyRoutes                 = require('./routes/emergency');
 const patientProfileRoutes            = require('./routes/patientProfile');
 const uploadRoutes                    = require('./routes/upload');
 const delegatesRoutes                 = require('./routes/delegates');
+const auditLogsRoutes                 = require('./routes/auditLogs');
 
 const app = express();
 
@@ -47,6 +48,7 @@ app.use('/api/emergency', emergencyRoutes);
 app.use('/api/patient-profile', patientProfileRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/delegates', delegatesRoutes);
+app.use('/api/audit-logs', auditLogsRoutes);
 
 // ── 404 & global error handler (must be last) ────────────
 app.use(notFoundHandler);

@@ -227,6 +227,7 @@ CREATE TABLE public.user_delegates (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   patient_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   delegate_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  contact_number TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE(patient_id, delegate_id)
 );

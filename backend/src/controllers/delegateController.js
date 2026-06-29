@@ -3,7 +3,7 @@ const User = require('../models/User');
 
 exports.addDelegate = async (req, res, next) => {
   try {
-    const { email } = req.body;
+    const { email, contactNumber } = req.body;
     const patientId = req.user.userId;
 
     if (req.user.role !== 'patient') {
@@ -19,7 +19,7 @@ exports.addDelegate = async (req, res, next) => {
       return res.status(400).json({ error: 'You cannot delegate to yourself' });
     }
 
-    const delegate = await Delegate.addDelegate(patientId, delegateUser.id);
+    const delegate = await Delegate.addDelegate(patientId, delegateUser.id, contactNumber);
     res.status(201).json({ message: 'Delegate added successfully', delegate });
   } catch (error) {
     next(error);
