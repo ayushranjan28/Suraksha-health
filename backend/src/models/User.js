@@ -130,6 +130,30 @@ class User {
     return data;
   }
 
+  /**
+   * Find a user by UUID or unique_id.
+   *
+   * @param {string} identifier - UUID or unique_id (e.g. PAT-...)
+   * @returns {Promise<Omit<UserRow, 'password_hash'> | null>}
+   */
+  static async findByIdOrUniqueId(identifier) {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+    const column = isUuid ? 'id' : 'unique_id';
+
+    const { data, error } = await supabase
+      .from('users')
+      .select(PUBLIC_COLUMNS)
+      .eq(column, identifier)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`User.findByIdOrUniqueId failed: ${error.message}`);
+    }
+
+    return data;
+  }
+
   // ────────────────────────────────────────────────────────
   // GOOGLE AUTH
   // ────────────────────────────────────────────────────────
@@ -167,8 +191,8 @@ class User {
    * @returns {Promise<Omit<UserRow, 'password_hash'>>} Created user (no password_hash)
    * @throws {Error} On DB error
    */
-  static async createGoogleUser({ email, fullName, googleId, avatarUrl }) {
-    const unique_id = User.generateUniqueId('patient');
+  static async createGoogleUser({ email, fullName, googleId, avatarUrl, role = 'patient' }) {
+    const unique_id = User.generateUniqueId(role);
 
     const { data, error } = await supabase
       .from('users')
@@ -177,7 +201,7 @@ class User {
         email,
         password_hash: null,
         full_name:     fullName,
-        role:          'patient',
+        role:          role,
         google_id:     googleId,
         avatar_url:    avatarUrl,
         auth_provider: 'google',

@@ -10,6 +10,8 @@ export default function PatientSearchPage() {
   const [loading, setLoading] = useState(false);
   const [overriding, setOverriding] = useState(false);
   const [error, setError] = useState('');
+  const [hasSearched, setHasSearched] = useState(false);
+  const [delegates, setDelegates] = useState<any[]>([]);
 
   const [profile, setProfile] = useState<PatientProfileData | null>(null);
   const [records, setRecords] = useState<HealthRecord[]>([]);
@@ -34,17 +36,22 @@ export default function PatientSearchPage() {
       setError('');
       setProfile(null);
       setRecords([]);
+      setDelegates([]);
       setShowAddRecord(false);
+      setHasSearched(false);
 
       // Fetch Profile
-      const profileData = await profileApi.getPatientProfileByDoctor(patientId, patientName);
-      if (profileData.profile) {
-        setProfile(profileData.profile);
+      try {
+        const profileData = await profileApi.getPatientProfileByDoctor(patientId, patientName);
+        setProfile(profileData.profile || {} as PatientProfileData);
+      } catch (e) {
+        setProfile({} as PatientProfileData);
       }
 
       // Fetch Records
       const recordsData = await recordsApi.getRecords(patientId, patientName);
       setRecords(recordsData.records);
+      setHasSearched(true);
     } catch (err: unknown) {
       setError((err as Error).message || 'Verification failed. Please check UUID and Name.');
     } finally {
@@ -91,55 +98,43 @@ export default function PatientSearchPage() {
     }
   };
 
-  const handleOverride = async () => {
+  const handleDeclareEmergency = async () => {
     if (!patientId) {
-      setError('Please enter a Patient UUID first to initiate an override.');
+      setError('Please enter a Patient UUID first to declare an emergency.');
       return;
     }
 
-    if (!confirm('WARNING: You are about to initiate a Life-Threatening Emergency Override. This action will be permanently audited and your location will be verified. Proceed?')) {
+    if (!confirm("WARNING: You are about to declare a Life-Threatening Emergency. This will immediately notify the patient's emergency contacts and grant you 2 hours of access. Proceed?")) {
       return;
     }
 
     setOverriding(true);
     setError('');
 
-    if (!navigator.geolocation) {
-      setError('Geolocation is not supported by your browser.');
-      setOverriding(false);
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
-          
-          await api.emergency.override(patientId, 'Life-Threatening Emergency', lat, lng);
-          
-          // Force a reload of data now that we have access
-          setError('Override granted. You have 2 hours of access. Loading records...');
-          const recordsData = await recordsApi.getRecords(patientId, patientName);
-          setRecords(recordsData.records);
-          
-          try {
-            const profileData = await profileApi.getPatientProfileByDoctor(patientId, patientName);
-            if (profileData.profile) setProfile(profileData.profile);
-          } catch (e) {
-            // ignore if profile fails
-          }
-        } catch (err: any) {
-          setError(err.message || 'Override failed.');
-        } finally {
-          setOverriding(false);
-        }
-      },
-      (geoErr) => {
-        setError('Location access denied. Geo-fenced override requires your location.');
-        setOverriding(false);
+    try {
+      const res = await api.emergency.declare(patientId, 'Life-Threatening Emergency');
+      
+      setError('Emergency Declared. You have 2 hours of access. Loading records...');
+      if (res.delegates && res.delegates.length > 0) {
+        setDelegates(res.delegates);
       }
-    );
+      
+      const recordsData = await recordsApi.getRecords(patientId, patientName);
+      setRecords(recordsData.records);
+      setHasSearched(true);
+      
+      try {
+        const profileData = await profileApi.getPatientProfileByDoctor(patientId, patientName);
+        setProfile(profileData.profile || {} as PatientProfileData);
+      } catch (e) {
+        // Always render profile block even if it fails
+        setProfile({} as PatientProfileData);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to declare emergency.');
+    } finally {
+      setOverriding(false);
+    }
   };
 
   return (
@@ -177,33 +172,39 @@ export default function PatientSearchPage() {
         
         <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-800 text-right">
           <button
-            onClick={handleOverride}
+            onClick={handleDeclareEmergency}
             disabled={loading || overriding}
             className="text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 dark:text-red-400 px-4 py-2 rounded text-sm font-medium transition-colors disabled:opacity-50"
           >
-            {overriding ? 'Verifying Location...' : '🚨 Life-Threatening Override'}
+            {overriding ? 'Declaring Emergency...' : '🚨 Declare Emergency'}
           </button>
           <p className="text-xs text-zinc-500 mt-2">
-            Bypass approval using GPS Geo-Fencing. Subject to strict auditing.
+            Grants immediate access and notifies patient's emergency contacts. Subject to strict auditing.
           </p>
         </div>
       </div>
 
-      {profile && (
-        <div className="bg-amber-50 p-6 rounded-xl border border-amber-200 dark:bg-amber-900/20 dark:border-amber-800">
-          <h2 className="text-lg font-semibold mb-4 text-amber-900 dark:text-amber-400">Emergency Profile</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div><span className="font-medium">Blood Group:</span> {profile.bloodGroup || 'N/A'}</div>
-            <div><span className="font-medium">Allergies:</span> {profile.allergies || 'None'}</div>
-            <div><span className="font-medium">Past Accidents:</span> {profile.pastAccidents || 'None'}</div>
-            <div><span className="font-medium">Trauma/Conditions:</span> {profile.trauma || 'None'}</div>
-            <div className="col-span-2"><span className="font-medium">Other Info:</span> {profile.otherInfo || 'None'}</div>
+      {delegates.length > 0 && (
+        <div className="bg-red-50 p-6 rounded-xl border border-red-200 dark:bg-red-900/20 dark:border-red-800">
+          <h2 className="text-lg font-semibold mb-4 text-red-900 dark:text-red-400">Emergency Contacts Notified</h2>
+          <div className="space-y-3">
+            {delegates.map((d: any) => (
+              <div key={d.id} className="flex flex-col gap-1 text-sm bg-white dark:bg-zinc-900 p-3 rounded border border-red-100 dark:border-red-900/30">
+                <p><span className="font-semibold text-zinc-900 dark:text-white">Name:</span> {d.delegate?.full_name || 'Unknown'}</p>
+                <p><span className="font-semibold text-zinc-900 dark:text-white">Email:</span> {d.delegate?.email || 'N/A'}</p>
+                <p><span className="font-semibold text-zinc-900 dark:text-white">Phone:</span> {d.contact_number || 'Not provided'}</p>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {profile && (
-        <div className="space-y-4">
+
+
+      <div className={profile ? "grid grid-cols-1 lg:grid-cols-3 gap-6 items-start" : "space-y-4"}>
+        <div className={profile ? "lg:col-span-2 space-y-4 order-2 lg:order-1" : "space-y-4"}>
+          {hasSearched && (
+            <div className="space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-semibold">Health Records</h2>
             <button
@@ -254,7 +255,7 @@ export default function PatientSearchPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Previous Doctor Name</label>
+                  <label className="block text-sm font-medium mb-1">Previous Doctor Name (optional)</label>
                   <input type="text" value={newRecord.previousDoctorName} onChange={e => setNewRecord({ ...newRecord, previousDoctorName: e.target.value })} className="w-full border p-2 rounded dark:bg-zinc-800 dark:border-zinc-700" />
                 </div>
                 <div>
@@ -271,7 +272,29 @@ export default function PatientSearchPage() {
           {records.length === 0 ? (
             <p className="text-zinc-500">No past records found.</p>
           ) : (
-            records.map(record => (
+            <>
+              {(() => {
+                const pastDocs = Array.from(new Set(records.flatMap(r => {
+                  const docs = [];
+                  if (r.doctor && (r.doctor as any).full_name) docs.push(`Dr. ${(r.doctor as any).full_name}`);
+                  else if (r.doctor && r.doctor.fullName) docs.push(`Dr. ${r.doctor.fullName}`);
+                  
+                  if (r.previous_doctor_name) {
+                    docs.push(r.previous_doctor_name.startsWith('Dr.') ? r.previous_doctor_name : `Dr. ${r.previous_doctor_name}`);
+                  }
+                  return docs;
+                })));
+                return pastDocs.length > 0 ? (
+                  <div className="bg-blue-50 p-4 rounded-xl border border-blue-200 dark:bg-blue-900/20 dark:border-blue-900/30 mb-4">
+                    <h3 className="font-semibold text-blue-900 dark:text-blue-400 mb-1">Patient History</h3>
+                    <p className="text-sm text-blue-800 dark:text-blue-300">
+                      <span className="font-medium">Past Doctors Consulted: </span> 
+                      {pastDocs.join(', ')}
+                    </p>
+                  </div>
+                ) : null;
+              })()}
+              {records.map(record => (
               <div key={record.id} className="bg-white p-6 rounded-xl border border-zinc-200 dark:bg-zinc-900 dark:border-zinc-800">
                 <div className="flex justify-between items-start mb-2">
                   <h3 className="font-semibold text-lg">{record.title}</h3>
@@ -279,7 +302,7 @@ export default function PatientSearchPage() {
                 </div>
                 <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4 whitespace-pre-wrap">{record.content}</p>
                 <div className="text-xs text-zinc-500 space-y-1">
-                  <p>Added by: Dr. {record.doctor?.fullName || 'Unknown'}</p>
+                  <p>Added by: Dr. {(record.doctor as any)?.full_name || record.doctor?.fullName || 'Unknown'} {((record.doctor as any)?.email || record.doctor?.email) ? ` (${(record.doctor as any)?.email || record.doctor?.email})` : ''}</p>
                   {record.previous_doctor_name && <p>Consulted Before: {record.previous_doctor_name}</p>}
                   {record.file_urls && record.file_urls.length > 0 && (
                     <div className="mt-4">
@@ -301,9 +324,26 @@ export default function PatientSearchPage() {
                 </div>
               </div>
             ))
+            }
+            </>
           )}
         </div>
-      )}
+        )}
+        </div>
+        
+        {profile && (
+          <div className="lg:col-span-1 bg-amber-50 p-6 rounded-xl border border-amber-200 dark:bg-amber-900/20 dark:border-amber-800 sticky top-6 order-1 lg:order-2">
+            <h2 className="text-lg font-semibold mb-4 text-amber-900 dark:text-amber-400">Emergency Profile</h2>
+            <div className="flex flex-col gap-4 text-sm">
+              <div><span className="font-medium text-amber-800 dark:text-amber-500">Blood Group:</span> <br/><span className="text-zinc-800 dark:text-zinc-200">{profile.bloodGroup || 'N/A'}</span></div>
+              <div><span className="font-medium text-amber-800 dark:text-amber-500">Allergies:</span> <br/><span className="text-zinc-800 dark:text-zinc-200">{profile.allergies || 'None'}</span></div>
+              <div><span className="font-medium text-amber-800 dark:text-amber-500">Past Accidents:</span> <br/><span className="text-zinc-800 dark:text-zinc-200">{profile.pastAccidents || 'None'}</span></div>
+              <div><span className="font-medium text-amber-800 dark:text-amber-500">Trauma/Conditions:</span> <br/><span className="text-zinc-800 dark:text-zinc-200">{profile.trauma || 'None'}</span></div>
+              <div><span className="font-medium text-amber-800 dark:text-amber-500">Other Info:</span> <br/><span className="text-zinc-800 dark:text-zinc-200">{profile.otherInfo || 'None'}</span></div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

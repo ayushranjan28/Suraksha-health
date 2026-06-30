@@ -27,9 +27,12 @@ exports.getPatientProfileByDoctor = async (req, res, next) => {
   try {
     const { patientId } = req.params;
     const { patientName } = req.query;
+    
+    // Resolve patient (can be UUID or PAT- ID)
+    const patient = await User.findByIdOrUniqueId(patientId);
+    
     // Basic cross-verification
     if (patientName) {
-      const patient = await User.findById(patientId);
       if (!patient || patient.full_name.toLowerCase() !== patientName.toLowerCase()) {
         return res.status(403).json({ error: 'Cross-verification failed' });
       }
@@ -39,7 +42,7 @@ exports.getPatientProfileByDoctor = async (req, res, next) => {
       return res.status(403).json({ error: 'Patient name required for cross-verification' });
     }
 
-    const profile = await PatientProfile.findByUserId(patientId);
+    const profile = await PatientProfile.findByUserId(patient.id);
     res.json({ profile });
   } catch (error) {
     next(error);

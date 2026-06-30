@@ -5,16 +5,7 @@ const emergencyController = require('../controllers/emergencyController');
 
 router.use(authenticateToken);
 
-// Doctors can create emergency requests
-router.post('/', requireRole('doctor'), emergencyController.createRequest);
-
-// Both can view requests
-router.get('/', emergencyController.getRequests);
-
-// Patients or Admins can update request status (approve/reject/revoke)
-router.patch('/:id/status', requireRole('patient', 'admin'), emergencyController.updateRequestStatus);
-
-// Doctors can use emergency override (geo-fenced)
-router.post('/override', requireRole('doctor'), emergencyController.overrideRequest);
+// Doctors can declare an emergency to get immediate access and notify delegates
+router.post('/declare', requireRole('doctor'), emergencyController.declareEmergency);
 
 module.exports = router;

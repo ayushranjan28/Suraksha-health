@@ -6,7 +6,7 @@ import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/lib/api';
 
-export default function GoogleLoginButton() {
+export default function GoogleLoginButton({ role }: { role?: string }) {
   const router = useRouter();
   const { googleLogin } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
@@ -24,7 +24,7 @@ export default function GoogleLoginButton() {
     setIsLoading(true);
 
     try {
-      await googleLogin(idToken);
+      await googleLogin(idToken, role);
       router.push('/dashboard');
     } catch (err) {
       if (err instanceof ApiError) {

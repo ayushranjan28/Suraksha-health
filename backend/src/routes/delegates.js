@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const delegateController = require('../controllers/delegateController');
-const { requireAuth } = require('../middleware/authMiddleware');
+const { authenticateToken } = require('../middleware/authMiddleware');
 
-router.use(requireAuth);
+router.use(authenticateToken);
 
 router.post('/', delegateController.addDelegate);
 router.delete('/:id', delegateController.removeDelegate);
