@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const auditLogController = require('../controllers/auditLogController');
-const { requireAuth } = require('../middleware/authMiddleware');
+const { authenticateToken } = require('../middleware/authMiddleware');
 
-router.use(requireAuth);
+router.use(authenticateToken);
 
 router.get('/', auditLogController.getPatientAccessLogs);
 

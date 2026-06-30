@@ -9,13 +9,13 @@ exports.createRecord = async (req, res, next) => {
     const doctorId = req.user.userId;
 
     // Verify patient exists
-    const patient = await User.findById(patientId);
+    const patient = await User.findByIdOrUniqueId(patientId);
     if (!patient || patient.role !== 'patient') {
       return res.status(404).json({ error: 'Patient not found' });
     }
 
     const record = await Record.create({
-      patientId,
+      patientId: patient.id,
       doctorId,
       title,
       content,
@@ -45,28 +45,37 @@ exports.getRecords = async (req, res, next) => {
       if (patientId) {
         let hasAccess = false;
 
+        let actualPatientId = patientId;
+        
         if (patientName) {
           // Cross-verification: Doctor provided UUID and Name
-          const patient = await User.findById(patientId);
+          const patient = await User.findByIdOrUniqueId(patientId);
           if (patient && patient.full_name.toLowerCase() === patientName.toLowerCase()) {
             hasAccess = true;
+            actualPatientId = patient.id;
+          } else {
+            return res.status(403).json({ error: 'Patient not found or name mismatch' });
           }
         }
 
         if (!hasAccess) {
-          hasAccess = await EmergencyRequest.hasActiveAccess(patientId, userId);
+          // Fallback if patientName not provided but we still need patient ID for emergency check
+          const patient = await User.findByIdOrUniqueId(patientId);
+          if (!patient) return res.status(404).json({ error: 'Patient not found' });
+          actualPatientId = patient.id;
+          hasAccess = await EmergencyRequest.hasActiveAccess(actualPatientId, userId);
         }
 
         if (!hasAccess) {
           return res.status(403).json({ error: 'No active emergency access to this patient and cross-verification failed' });
         }
-        records = await Record.findByPatient(patientId);
+        records = await Record.findByPatient(actualPatientId);
         
         // Log this access
         await AuditLog.create({
           userId,
           action: 'RECORD_VIEWED',
-          metadata: { patientId }
+          metadata: { patientId: actualPatientId }
         });
       } else {
         return res.status(400).json({ error: 'patientId query parameter is required for doctors to view records' });

@@ -1,168 +1,39 @@
-const EmergencyRequest = require('../models/EmergencyRequest');
 const User = require('../models/User');
 const Delegate = require('../models/Delegate');
 const AuditLog = require('../models/AuditLog');
-const { getDistanceInMeters } = require('../utils/geo');
+const { sendEmergencyNotificationEmail } = require('../services/emailService');
+const { supabase } = require('../config/db');
 
-exports.createRequest = async (req, res, next) => {
+exports.declareEmergency = async (req, res, next) => {
   try {
     const { patientId, reason } = req.body;
     const doctorId = req.user.userId;
 
-    const patient = await User.findById(patientId);
-    if (!patient || patient.role !== 'patient') {
-      return res.status(404).json({ error: 'Patient not found' });
-    }
-
-    const request = await EmergencyRequest.create({
-      patientId,
-      doctorId,
-      reason
-    });
-
-    res.status(201).json({ message: 'Emergency access requested', request });
-  } catch (error) {
-    next(error);
-  }
-};
-
-exports.getRequests = async (req, res, next) => {
-  try {
-    const { userId, role } = req.user;
-
-    let requests = [];
-    if (role === 'patient') {
-      requests = await EmergencyRequest.findByPatient(userId);
-      
-      const delegatedPatientIds = await Delegate.getPatientsForDelegate(userId);
-      for (const pid of delegatedPatientIds) {
-        const delReqs = await EmergencyRequest.findByPatient(pid);
-        // Add a flag to indicate these are delegated requests
-        requests = requests.concat(delReqs.map(r => ({ ...r, isDelegated: true })));
-      }
-    } else if (role === 'doctor') {
-      requests = await EmergencyRequest.findByDoctor(userId);
-    } else if (role === 'admin') {
-      requests = await EmergencyRequest.findAll();
-    }
-
-    res.json({ requests });
-  } catch (error) {
-    next(error);
-  }
-};
-
-exports.updateRequestStatus = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
-    const { userId, role } = req.user;
-
-    if (!['approved', 'rejected', 'revoked'].includes(status)) {
-      return res.status(400).json({ error: 'Invalid status' });
-    }
-
-    const request = await EmergencyRequest.findById(id);
-    if (!request) {
-      return res.status(404).json({ error: 'Emergency request not found' });
-    }
-
-    // Patient, Delegate, or Admin can approve/reject/revoke
-    let isAuthorized = false;
-    if (role === 'admin') {
-      isAuthorized = true;
-    } else if (role === 'patient') {
-      if (request.patient_id === userId) {
-        isAuthorized = true;
-      } else {
-        const delegatedPatientIds = await Delegate.getPatientsForDelegate(userId);
-        if (delegatedPatientIds.includes(request.patient_id)) {
-          isAuthorized = true;
-        }
-      }
-    }
-
-    if (!isAuthorized) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
-
-    let expiresAt = null;
-    if (status === 'approved') {
-      const { expiresInHours } = req.body;
-      if (expiresInHours !== undefined) {
-        if (expiresInHours === 0) {
-          expiresAt = null; // Permanent
-        } else {
-          const expiry = new Date();
-          expiry.setHours(expiry.getHours() + parseInt(expiresInHours));
-          expiresAt = expiry.toISOString();
-        }
-      } else {
-        // Default to 24 hours if not specified
-        const expiry = new Date();
-        expiry.setHours(expiry.getHours() + 24);
-        expiresAt = expiry.toISOString();
-      }
-    }
-
-    const updatedRequest = await EmergencyRequest.updateStatus(id, status, expiresAt);
-
-    if (status === 'approved' && role === 'admin') {
-      await AuditLog.create({
-        userId,
-        action: 'ADMIN_OVERRIDE_APPROVAL',
-        metadata: { patientId: request.patient_id, requestId: id }
-      });
-    }
-
-    res.json({ message: `Emergency request ${status}`, request: updatedRequest });
-  } catch (error) {
-    next(error);
-  }
-};
-
-exports.overrideRequest = async (req, res, next) => {
-  try {
-    const { patientId, reason, lat, lng } = req.body;
-    const doctorId = req.user.userId;
-
     if (req.user.role !== 'doctor') {
-      return res.status(403).json({ error: 'Only doctors can use emergency override' });
+      return res.status(403).json({ error: 'Only doctors can declare an emergency' });
     }
 
-    if (!lat || !lng) {
-      return res.status(400).json({ error: 'Location coordinates required for override' });
-    }
-
-    const patient = await User.findById(patientId);
+    const patient = await User.findByIdOrUniqueId(patientId);
     if (!patient || patient.role !== 'patient') {
       return res.status(404).json({ error: 'Patient not found' });
     }
+    const actualPatientId = patient.id;
 
-    const hospitalLat = parseFloat(process.env.HOSPITAL_LAT || 0);
-    const hospitalLng = parseFloat(process.env.HOSPITAL_LNG || 0);
-    const maxRadius = parseFloat(process.env.ALLOWED_RADIUS_METERS || 500);
+    // Get doctor info for the email
+    const doctor = await User.findById(doctorId);
+    const doctorName = doctor ? doctor.full_name : 'Unknown';
+    const doctorContact = doctor ? doctor.email : 'N/A';
 
-    const distance = getDistanceInMeters(lat, lng, hospitalLat, hospitalLng);
-
-    if (distance > maxRadius) {
-      await AuditLog.create({
-        userId: doctorId,
-        action: 'FAILED_OVERRIDE_ATTEMPT',
-        metadata: { patientId, reason, lat, lng, distance, error: 'Outside hospital zone' }
-      });
-      return res.status(403).json({ error: `You are too far from the registered hospital zone (Distance: ${Math.round(distance)}m). Override denied.` });
-    }
-
+    // Grant 2 hours of access
     const expiry = new Date();
     expiry.setHours(expiry.getHours() + 2);
     
-    const { data: request, error } = await require('../config/db').supabase
+    const { data: request, error } = await supabase
       .from('emergency_requests')
       .insert({
-        patient_id: patientId,
+        patient_id: actualPatientId,
         doctor_id: doctorId,
-        reason,
+        reason: reason || 'Life-Threatening Emergency',
         status: 'approved',
         expires_at: expiry.toISOString()
       })
@@ -173,11 +44,36 @@ exports.overrideRequest = async (req, res, next) => {
 
     await AuditLog.create({
       userId: doctorId,
-      action: 'LIFE_THREATENING_OVERRIDE',
-      metadata: { patientId, reason, lat, lng, distance, requestId: request.id }
+      action: 'LIFE_THREATENING_OVERRIDE', // Keep the action name for continuity, or rename to EMERGENCY_DECLARED
+      metadata: { patientId: actualPatientId, reason, requestId: request.id }
     });
 
-    res.status(201).json({ message: 'Emergency override granted for 2 hours', request });
+    // Notify Delegates
+    let delegates = [];
+    try {
+      delegates = await Delegate.getDelegates(actualPatientId);
+      
+      // Dispatch emails asynchronously
+      for (const d of delegates) {
+        if (d.delegate && d.delegate.email) {
+          sendEmergencyNotificationEmail(
+            d.delegate.email,
+            d.delegate.full_name,
+            patient.full_name,
+            doctorName,
+            doctorContact
+          ).catch(e => console.error('Failed to send emergency email to delegate:', e));
+        }
+      }
+    } catch (delegateError) {
+      console.error('Error fetching/notifying delegates:', delegateError);
+    }
+
+    res.status(201).json({ 
+      message: 'Emergency declared. Access granted and delegates notified.', 
+      request,
+      delegates
+    });
   } catch (error) {
     next(error);
   }

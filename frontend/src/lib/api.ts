@@ -291,30 +291,10 @@ export const records = {
 // ── Emergency API Functions ──────────────────────────────────────────────────
 
 export const emergency = {
-  async getRequests(): Promise<{ requests: EmergencyRequest[] }> {
-    return apiCall<{ requests: EmergencyRequest[] }>('/api/emergency', {
-      method: 'GET',
-    });
-  },
-
-  async createRequest(data: { patientId: string; reason: string }): Promise<{ message: string; request: EmergencyRequest }> {
-    return apiCall<{ message: string; request: EmergencyRequest }>('/api/emergency', {
+  async declare(patientId: string, reason: string): Promise<{ message: string; delegates: any[] }> {
+    return apiCall<{ message: string; delegates: any[] }>('/api/emergency/declare', {
       method: 'POST',
-      body: data,
-    });
-  },
-
-  async updateStatus(id: string, status: 'approved' | 'rejected' | 'revoked', expiresInHours?: number): Promise<{ message: string; request: EmergencyRequest }> {
-    return apiCall<{ message: string; request: EmergencyRequest }>(`/api/emergency/${id}/status`, {
-      method: 'PATCH',
-      body: { status, expiresInHours },
-    });
-  },
-
-  async override(patientId: string, reason: string, lat: number, lng: number): Promise<{ message: string; request: any }> {
-    return apiCall<{ message: string; request: any }>('/api/emergency/override', {
-      method: 'POST',
-      body: { patientId, reason, lat, lng },
+      body: { patientId, reason },
     });
   },
 };
@@ -382,7 +362,7 @@ export const upload = {
     const formData = new FormData();
     formData.append('file', file);
     
-    return apiCall<{ message: string; url: string }>('/upload', {
+    return apiCall<{ message: string; url: string }>('/api/upload', {
       method: 'POST',
       body: formData,
       // Do not set Content-Type, let browser set it with boundary

@@ -288,8 +288,93 @@ If you didn't create this account, you can safely ignore this email.
   }
 }
 
+async function sendEmergencyNotificationEmail(toEmail, delegateName, patientName, doctorName, doctorContact) {
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>URGENT: Emergency Declared</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f4f4f5;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table role="presentation" style="max-width: 480px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          ${emailHeader()}
+          
+          <!-- Body -->
+          <tr>
+            <td style="padding: 32px;">
+              <h2 style="margin: 0 0 16px; font-size: 20px; font-weight: 600; color: #dc2626;">🚨 URGENT: Emergency Declared</h2>
+              <p style="margin: 0 0 24px; font-size: 15px; line-height: 1.6; color: #52525b;">
+                Hello ${delegateName},
+              </p>
+              <p style="margin: 0 0 24px; font-size: 15px; line-height: 1.6; color: #52525b;">
+                A medical emergency has just been declared for <strong>${patientName}</strong>. 
+                Because you are listed as their emergency contact, we are notifying you immediately.
+              </p>
+              
+              <!-- Doctor Info -->
+              <div style="padding: 16px; background-color: #fef2f2; border-radius: 8px; border-left: 4px solid #ef4444; margin-bottom: 24px;">
+                <p style="margin: 0 0 8px; font-size: 14px; font-weight: 600; color: #991b1b;">Doctor Information:</p>
+                <p style="margin: 0 0 4px; font-size: 14px; color: #7f1d1d;">Name: Dr. ${doctorName}</p>
+                <p style="margin: 0; font-size: 14px; color: #7f1d1d;">Contact: ${doctorContact}</p>
+              </div>
+              
+              <p style="margin: 0 0 16px; font-size: 14px; line-height: 1.6; color: #71717a;">
+                The doctor has been granted temporary, audited access to ${patientName}'s medical records to provide immediate care.
+              </p>
+            </td>
+          </tr>
+          
+          ${emailFooter()}
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+
+  const text = `
+URGENT: Emergency Declared for ${patientName}
+
+Hello ${delegateName},
+
+A medical emergency has just been declared for ${patientName}. 
+You are receiving this because you are listed as their emergency contact.
+
+Doctor Information:
+Name: Dr. ${doctorName}
+Contact: ${doctorContact}
+
+The doctor has been granted immediate access to ${patientName}'s medical records.
+
+— Suraksha Health
+  `.trim();
+
+  try {
+    const info = await transporter.sendMail({
+      from: fromAddress(),
+      to: toEmail,
+      subject: `URGENT: Medical Emergency Declared for ${patientName}`,
+      html,
+      text,
+    });
+
+    console.log(`Emergency notification sent to ${toEmail} (messageId: ${info.messageId})`);
+    return { success: true, messageId: info.messageId };
+  } catch (err) {
+    console.error('Email service error:', err);
+    throw err;
+  }
+}
+
 module.exports = {
   sendPasswordResetEmail,
   sendVerificationEmail,
+  sendEmergencyNotificationEmail,
   verifyTransporter,
 };
