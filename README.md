@@ -236,8 +236,16 @@ See **[API_CONTRACT.md](./API_CONTRACT.md)** for complete API documentation incl
 | Developer | Responsibility | Status |
 |-----------|---------------|--------|
 | **Dev 1** | Auth system (JWT + Google OAuth), email verification, password reset, database setup, login/register UI | ✅ Complete |
-| **Dev 2** | Records management, emergency access features | ✅ Complete |
-| **Dev 2** | Dashboards with analytics | 🚧 Starting |
+| **Dev 2** | Records management, file uploads (Pinata), cross-verification logic, emergency access features, and patient profiles | ✅ Complete |
+| **Dev 2** | Dashboards with emergency profiles and UI layouts | ✅ Complete |
+
+### Emergency Access Workflow
+
+1. **Identify Patient:** The doctor enters the patient's UUID into the **Patient Search** page.
+2. **Declare Emergency:** If the patient is unconscious and cannot provide consent (their exact registered name for cross-verification), the doctor clicks the **"🚨 Declare Emergency"** button.
+3. **Temporary Access Granted:** The doctor gets immediate, audited access to the patient's **Emergency Profile** (blood group, allergies) and **Health Records** for 2 hours.
+4. **Delegate Notification:** The system instantly notifies the patient's registered "Emergency Contacts" (Delegates) via email/phone that a doctor accessed their records.
+5. **Audit Logging:** The access is permanently logged in the patient's Audit Log for transparency.
 
 ### For Dev 2: Getting Started
 
